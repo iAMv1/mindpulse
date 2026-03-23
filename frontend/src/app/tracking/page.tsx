@@ -110,7 +110,7 @@ function Recommendation({ score }: { score: number }) {
 
 // ─── Main Page ───
 export default function TrackingPage() {
-  const { data, status, reconnect, history, send } = useStressStream();
+  const { data, status, reconnect, history } = useStressStream();
   const [stats, setStats] = useState<UserStats | null>(null);
 
   useEffect(() => {
@@ -156,10 +156,7 @@ export default function TrackingPage() {
             <div>Check that the backend WebSocket is running at {WS_URL}.</div>
           </div>
           <button
-            onClick={() => {
-              reconnect();
-              send({}, "default");
-            }}
+            onClick={reconnect}
             className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-surface-hover transition"
           >
             Retry
@@ -224,7 +221,7 @@ export default function TrackingPage() {
               const color =
                 item.level === "NEUTRAL" ? "text-neutral" : item.level === "MILD" ? "text-mild" : "text-stressed";
               return (
-                <div key={item.timestamp} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
+                <div key={`${item.timestamp}-${item.score}`} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
                   <span className="text-xs text-muted">
                     {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </span>
