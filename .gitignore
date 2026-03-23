@@ -17,6 +17,12 @@ backend/app/ml/artifacts/*.json
 # Datasets (large CSVs)
 backend/data/*.csv
 !backend/data/sample_data.csv
+backend/data/eval_results/*.json
+!backend/data/eval_results/paper_results.json
+
+# Eval output files
+backend/*.json
+backend/*.csv
 
 # Environment
 .env

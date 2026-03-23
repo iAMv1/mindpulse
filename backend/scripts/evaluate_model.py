@@ -136,20 +136,20 @@ def print_report(
 ) -> None:
     """Pretty print full report."""
     print("=" * 70)
-    print("MINDPULSE — MODEL EVALUATION REPORT")
+    print("MINDPULSE -- MODEL EVALUATION REPORT")
     print("=" * 70)
     print(f"Evaluation source: {source}")
     print(f"Samples: {n_samples}")
 
     print(f"\n{'Metric':<22} {'Score':>10}")
-    print(f"{'─' * 22} {'─' * 10}")
+    print(f"{'-' * 22} {'-' * 10}")
     print(f"{'Accuracy':<22} {metrics['accuracy'] * 100:>9.2f}%")
     print(f"{'Precision (Macro)':<22} {metrics['precision_macro'] * 100:>9.2f}%")
     print(f"{'Recall (Macro)':<22} {metrics['recall_macro'] * 100:>9.2f}%")
     print(f"{'F1-Score (Macro)':<22} {metrics['f1_macro'] * 100:>9.2f}%")
 
     print("\nDetailed Classification Report:")
-    print(classification_report(y_true, y_pred, target_names=LABELS, zero_division="0"))
+    print(classification_report(y_true, y_pred, target_names=LABELS, zero_division=0))
 
     cm = confusion_matrix(y_true, y_pred, labels=[0, 1, 2])
     print("Confusion Matrix:")
