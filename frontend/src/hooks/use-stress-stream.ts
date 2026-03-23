@@ -89,6 +89,7 @@ export function useStressStream(): UseStressStreamReturn {
       reconnectTimer.current = null;
     }
     if (wsRef.current) {
+      // avoid triggering the auto reconnect timer when we intentionally reconnect
       wsRef.current.onclose = null;
       wsRef.current.close();
     }
