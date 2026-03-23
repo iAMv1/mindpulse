@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { StressResult } from "@/lib/types";
+import { WS_URL } from "@/lib/config";
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
@@ -29,10 +30,9 @@ export function useStressStream(): UseStressStreamReturn {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
-    const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
     try {
       setStatus("connecting");
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(WS_URL);
       ws.onopen = () => shouldReconnect.current && setStatus("connected");
       ws.onclose = () => {
         if (!shouldReconnect.current) return;

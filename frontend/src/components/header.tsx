@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useWebSocket } from "@/hooks/use-websocket";
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
+import { WS_URL } from "@/lib/config";
 
 export default function Header() {
   const { connected, error } = useWebSocket(WS_URL);
