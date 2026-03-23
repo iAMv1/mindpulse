@@ -83,7 +83,6 @@ export function useStressStream(): UseStressStreamReturn {
   }, []);
 
   const reconnect = useCallback(() => {
-    shouldReconnect.current = true;
     if (reconnectTimer.current) {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
