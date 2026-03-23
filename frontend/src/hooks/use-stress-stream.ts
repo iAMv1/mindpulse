@@ -84,9 +84,13 @@ export function useStressStream(): UseStressStreamReturn {
 
   const reconnect = useCallback(() => {
     shouldReconnect.current = true;
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
+    if (wsRef.current) {
+      wsRef.current.onclose = null;
       wsRef.current.close();
-      return;
     }
     connect();
   }, [connect]);
