@@ -1,7 +1,7 @@
 """MindPulse Backend — Pydantic Schemas."""
 
 from __future__ import annotations
-from typing import Dict, List, Optional
+from typing import Dict, List
 from pydantic import BaseModel, Field
 
 
@@ -80,3 +80,17 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     version: str
     active_connections: int
+
+
+class BatchPredictRequest(BaseModel):
+    features: List[FeatureVector]
+    user_id: str = "default"
+
+
+class BatchPredictResponse(BaseModel):
+    predictions: List[InferenceResponse]
+
+
+class ExportFormat(str):
+    JSON = "json"
+    CSV = "csv"

@@ -19,7 +19,7 @@ export function useStressStream(): UseStressStreamReturn {
   const [history, setHistory] = useState<StressResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<NodeJS.Timeout>();
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
 
   const connect = useCallback(() => {
     const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
@@ -58,7 +58,7 @@ export function useStressStream(): UseStressStreamReturn {
   useEffect(() => {
     connect();
     return () => {
-      clearTimeout(reconnectTimer.current);
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
   }, [connect]);

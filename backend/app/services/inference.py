@@ -3,13 +3,11 @@
 from __future__ import annotations
 import numpy as np
 import time
-from typing import Dict, List, Tuple
+from typing import List
 
 from app.core.config import (
     FEATURE_NAMES,
     LABELS,
-    STRESS_SCORE_THRESHOLD_MILD,
-    STRESS_SCORE_THRESHOLD_HIGH,
 )
 
 
@@ -45,7 +43,6 @@ class InferenceEngine:
         if user_id not in self._baselines:
             try:
                 from app.ml.model import PersonalBaseline, BASELINE_DB
-                import os
 
                 db_path = BASELINE_DB.replace(".db", f"_{user_id}.db")
                 self._baselines[user_id] = PersonalBaseline(db_path=db_path)
@@ -62,33 +59,41 @@ class InferenceEngine:
         if not self.is_ready:
             return self._fallback_result()
 
-        # Convert dict to numpy array in correct order
         raw = np.array([features_dict[f] for f in FEATURE_NAMES], dtype=np.float32)
 
-        # Dual normalization: global z-score + per-user circadian deviation
+        non_finite_mask = ~np.isfinite(raw)
+        if np.any(non_finite_mask):
+            non_finite_features = [
+                FEATURE_NAMES[i]
+                for i in range(len(FEATURE_NAMES))
+                if non_finite_mask[i]
+            ]
+            raise ValueError(
+                f"Invalid input: features contain non-finite values (NaN or Inf): {non_finite_features}"
+            )
+
         hour = int(features_dict.get("hour_of_day", 12))
         baseline = self._get_baseline(user_id)
         z = self._normalizer.transform(raw, hour, baseline)
 
-        # Predict
         probs = self._model.predict_proba(z.reshape(1, -1))[0]
         level_idx = int(np.argmax(probs))
         level = LABELS[level_idx]
         confidence = float(np.max(probs))
         score = float(probs[1] * 50.0 + probs[2] * 100.0)
 
-        # Update personal baseline
         if baseline:
             baseline.update(raw, hour)
 
-        # Generate insights
         insights = self._generate_insights(features_dict, level)
 
         return {
             "score": round(score, 1),
             "level": level,
             "confidence": round(confidence, 3),
-            "probabilities": {l: round(float(p), 3) for l, p in zip(LABELS, probs)},
+            "probabilities": {
+                label: round(float(p), 3) for label, p in zip(LABELS, probs)
+            },
             "insights": insights,
             "timestamp": time.time(),
         }

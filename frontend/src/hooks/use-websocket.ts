@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import type { HistoryPoint } from "@/lib/types";
 
 export interface StressData {
   score: number;
@@ -18,12 +19,6 @@ export interface StressData {
   timestamp: number;
 }
 
-export interface HistoryPoint {
-  timestamp: number;
-  score: number;
-  level: string;
-}
-
 interface UseWebSocketReturn {
   data: StressData | null;
   history: HistoryPoint[];
@@ -37,7 +32,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<NodeJS.Timeout>();
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
 
   const connect = useCallback(() => {
     try {
@@ -63,7 +58,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
             setData(stressData);
             setHistory((prev) => [
               ...prev.slice(-120),
-              { timestamp: stressData.timestamp, score: stressData.score, level: stressData.level },
+              { timestamp: stressData.timestamp, score: stressData.score, level: stressData.level, insights: [] },
             ]);
           }
         } catch {}
@@ -88,7 +83,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
   useEffect(() => {
     connect();
     return () => {
-      clearTimeout(reconnectTimer.current);
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
   }, [connect]);
