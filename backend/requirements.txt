@@ -12,4 +12,4 @@ fastapi
 uvicorn[standard]
 pydantic
 torch
-recharts
+python-pptx
