@@ -22,6 +22,7 @@ export function useStressStream(): UseStressStreamReturn {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const manualClose = useRef(false);
   const shouldReconnect = useRef(true);
 
   const connect = useCallback(() => {
@@ -35,6 +36,11 @@ export function useStressStream(): UseStressStreamReturn {
       const ws = new WebSocket(WS_URL);
       ws.onopen = () => shouldReconnect.current && setStatus("connected");
       ws.onclose = () => {
+        if (manualClose.current) {
+          manualClose.current = false;
+          setStatus("disconnected");
+          return;
+        }
         if (!shouldReconnect.current) return;
         setStatus("disconnected");
         reconnectTimer.current = setTimeout(connect, 3000);
@@ -88,8 +94,7 @@ export function useStressStream(): UseStressStreamReturn {
       reconnectTimer.current = null;
     }
     if (wsRef.current) {
-      // avoid triggering the auto reconnect timer when we intentionally reconnect
-      wsRef.current.onclose = null;
+      manualClose.current = true;
       wsRef.current.close();
     }
     connect();
