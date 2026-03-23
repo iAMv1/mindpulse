@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.eggs/
+*.egg
+
+# ML artifacts (large binary files)
+backend/app/ml/artifacts/*.joblib
+backend/app/ml/artifacts/*.pt
+backend/app/ml/artifacts/*.db
+backend/app/ml/artifacts/*.json
+
+# Datasets (large CSVs)
+backend/data/*.csv
+!backend/data/sample_data.csv
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# tmp_repo (legacy)
+tmp_repo/
+
+# Ruff
+.ruff_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+
+# Misc
+*.bak
+*.tmp

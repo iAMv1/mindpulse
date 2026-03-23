@@ -1,0 +1,82 @@
+"""MindPulse Backend — Pydantic Schemas."""
+
+from __future__ import annotations
+from typing import Dict, List, Optional
+from pydantic import BaseModel, Field
+
+
+class FeatureVector(BaseModel):
+    """23 behavioral features extracted from a 5-minute window."""
+
+    hold_time_mean: float = Field(..., description="Average key hold time (ms)")
+    hold_time_std: float = Field(..., description="Std of key hold times")
+    hold_time_median: float = Field(..., description="Median key hold time")
+    flight_time_mean: float = Field(..., description="Average flight time (ms)")
+    flight_time_std: float = Field(..., description="Std of flight times")
+    typing_speed_wpm: float = Field(..., description="Typing speed (WPM)")
+    error_rate: float = Field(..., ge=0, le=1, description="Backspace ratio")
+    pause_frequency: float = Field(..., description="Pauses per minute")
+    pause_duration_mean: float = Field(..., description="Average pause duration (ms)")
+    burst_length_mean: float = Field(..., description="Average burst length")
+    rhythm_entropy: float = Field(
+        ..., description="Shannon entropy of inter-key intervals"
+    )
+    mouse_speed_mean: float = Field(..., description="Average mouse speed (px/s)")
+    mouse_speed_std: float = Field(..., description="Std of mouse speed")
+    direction_change_rate: float = Field(
+        ..., ge=0, le=1, description="Cursor direction changes"
+    )
+    click_count: float = Field(..., description="Clicks per window")
+    rage_click_count: float = Field(..., description="Rage click clusters detected")
+    scroll_velocity_std: float = Field(..., description="Std of scroll velocity")
+    tab_switch_freq: float = Field(..., description="Tab switches per minute")
+    switch_entropy: float = Field(..., description="Entropy of switch pattern")
+    session_fragmentation: float = Field(..., description="Session fragmentation ratio")
+    hour_of_day: float = Field(..., ge=0, le=23)
+    day_of_week: float = Field(..., ge=0, le=6)
+    session_duration_min: float = Field(..., description="Session length in minutes")
+
+
+class InferenceRequest(BaseModel):
+    features: FeatureVector
+    user_id: str = "default"
+
+
+class InferenceResponse(BaseModel):
+    score: float = Field(..., description="Stress score 0-100")
+    level: str = Field(..., description="NEUTRAL, MILD, or STRESSED")
+    confidence: float = Field(..., ge=0, le=1)
+    probabilities: Dict[str, float]
+    insights: List[str] = Field(
+        default_factory=list, description="Human-readable explanations"
+    )
+    timestamp: float
+
+
+class CalibrationStatus(BaseModel):
+    user_id: str
+    is_calibrated: bool
+    days_collected: int
+    samples_per_hour: Dict[int, int]
+    completion_pct: float
+
+
+class HistoryPoint(BaseModel):
+    timestamp: float
+    score: float
+    level: str
+    insights: List[str] = []
+
+
+class FeedbackRequest(BaseModel):
+    user_id: str = "default"
+    timestamp: float
+    predicted_level: str
+    actual_level: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+    model_loaded: bool
+    version: str
+    active_connections: int

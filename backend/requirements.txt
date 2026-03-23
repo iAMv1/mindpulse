@@ -1,0 +1,15 @@
+pynput
+numpy
+pandas
+scipy
+xgboost
+scikit-learn
+streamlit
+plotly
+psutil
+joblib
+fastapi
+uvicorn[standard]
+pydantic
+torch
+recharts
