@@ -93,6 +93,9 @@ export function useStressStream(): UseStressStreamReturn {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
+    if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+      return;
+    }
     if (wsRef.current) {
       manualClose.current = true;
       wsRef.current.close();
