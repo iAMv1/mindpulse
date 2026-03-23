@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export default function PrivacyPage() {
   const [trackingPaused, setTrackingPaused] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
-    setTimeout(() => setNotification(null), 3000);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setNotification(null), 3000);
   };
 
   const handlePause = () => {
@@ -25,6 +27,12 @@ export default function PrivacyPage() {
       showNotification("All data has been deleted");
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">

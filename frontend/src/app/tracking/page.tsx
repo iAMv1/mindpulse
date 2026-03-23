@@ -109,16 +109,31 @@ function Recommendation({ score }: { score: number }) {
 
 // ─── Main Page ───
 export default function TrackingPage() {
-  const { data, status, send } = useStressStream();
+  const { data, status, reconnect, history } = useStressStream();
   const [stats, setStats] = useState<UserStats | null>(null);
 
   useEffect(() => {
-    api.stats().then(setStats).catch(() => {});
+    let active = true;
+    api
+      .stats()
+      .then((result) => {
+        if (active) setStats(result);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, []);
 
   const score = data?.score ?? 0;
   const level = data?.level ?? "UNKNOWN";
   const insights = data?.insights ?? [];
+  const probabilities = data?.probabilities ?? { NEUTRAL: 0, MILD: 0, STRESSED: 0 };
+  const lastUpdated =
+    data?.timestamp != null
+      ? new Date(data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      : null;
+  const recentHistory = history.slice(-5).reverse();
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -132,6 +147,21 @@ export default function TrackingPage() {
           <span className="text-muted">{status}</span>
         </div>
       </div>
+
+      {status !== "connected" && (
+        <div className="rounded-xl border border-stressed/40 bg-stressed/10 p-4 text-sm text-muted flex items-center justify-between gap-3">
+          <div>
+            <div className="font-medium text-white">Waiting for live stream</div>
+            <div>Check that the backend WebSocket is running at {process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress"}.</div>
+          </div>
+          <button
+            onClick={reconnect}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-surface-hover transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Gauge + Stats Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -156,6 +186,51 @@ export default function TrackingPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Insights insights={insights} level={level} />
         <Recommendation score={score} />
+      </div>
+
+      {/* Model Signal */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <h3 className="text-sm font-semibold mb-3">Model Probabilities</h3>
+          <div className="space-y-2">
+            {(["NEUTRAL", "MILD", "STRESSED"] as const).map((label) => {
+              const pct = Math.round((probabilities[label] ?? 0) * 100);
+              const color = label === "NEUTRAL" ? "bg-neutral" : label === "MILD" ? "bg-mild" : "bg-stressed";
+              return (
+                <div key={label}>
+                  <div className="flex items-center justify-between text-xs text-muted mb-1">
+                    <span>{label}</span>
+                    <span className="text-white font-semibold">{pct}%</span>
+                  </div>
+                  <div className="h-2 bg-surface-hover rounded-full overflow-hidden">
+                    <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {lastUpdated && <div className="text-xs text-muted mt-3">Last update: {lastUpdated}</div>}
+        </div>
+
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <h3 className="text-sm font-semibold mb-3">Recent Live Readings</h3>
+          <div className="space-y-2 max-h-56 overflow-auto">
+            {recentHistory.length === 0 && <p className="text-sm text-muted">Waiting for the first live packet...</p>}
+            {recentHistory.map((item, idx) => {
+              const color =
+                item.level === "NEUTRAL" ? "text-neutral" : item.level === "MILD" ? "text-mild" : "text-stressed";
+              return (
+                <div key={`${item.timestamp}-${idx}`} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
+                  <span className="text-xs text-muted">
+                    {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                  <span className={`font-semibold ${color}`}>{item.score.toFixed(1)}</span>
+                  <span className={`text-xs ${color}`}>{item.level}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Feedback */}

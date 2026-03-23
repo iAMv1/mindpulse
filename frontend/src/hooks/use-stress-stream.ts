@@ -12,6 +12,7 @@ interface UseStressStreamReturn {
   history: StressResult[];
   status: ConnectionStatus;
   send: (features: Record<string, number>, userId?: string) => void;
+  reconnect: () => void;
 }
 
 export function useStressStream(): UseStressStreamReturn {
@@ -20,14 +21,21 @@ export function useStressStream(): UseStressStreamReturn {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const shouldReconnect = useRef(true);
 
   const connect = useCallback(() => {
+    if (!shouldReconnect.current) return;
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
     const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
     try {
       setStatus("connecting");
       const ws = new WebSocket(url);
-      ws.onopen = () => setStatus("connected");
+      ws.onopen = () => shouldReconnect.current && setStatus("connected");
       ws.onclose = () => {
+        if (!shouldReconnect.current) return;
         setStatus("disconnected");
         reconnectTimer.current = setTimeout(connect, 3000);
       };
@@ -35,6 +43,7 @@ export function useStressStream(): UseStressStreamReturn {
         try {
           const msg = JSON.parse(e.data);
           if (msg.type === "stress_update") {
+            if (!shouldReconnect.current) return;
             const result: StressResult = {
               score: msg.score,
               level: msg.level,
@@ -51,13 +60,17 @@ export function useStressStream(): UseStressStreamReturn {
       ws.onerror = () => ws.close();
       wsRef.current = ws;
     } catch {
-      setStatus("disconnected");
+      if (shouldReconnect.current) {
+        setStatus("disconnected");
+      }
     }
   }, []);
 
   useEffect(() => {
+    shouldReconnect.current = true;
     connect();
     return () => {
+      shouldReconnect.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
@@ -69,5 +82,10 @@ export function useStressStream(): UseStressStreamReturn {
     }
   }, []);
 
-  return { data, history, status, send };
+  const reconnect = useCallback(() => {
+    shouldReconnect.current = true;
+    connect();
+  }, [connect]);
+
+  return { data, history, status, send, reconnect };
 }
