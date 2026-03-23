@@ -221,6 +221,7 @@ export default function TrackingPage() {
               const color =
                 item.level === "NEUTRAL" ? "text-neutral" : item.level === "MILD" ? "text-mild" : "text-stressed";
               return (
+                // index fallback guards against rare duplicate timestamps from rapid packets
                 <div key={`${item.timestamp}-${idx}`} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
                   <span className="text-xs text-muted">
                     {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}

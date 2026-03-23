@@ -94,7 +94,6 @@ export function useWebSocket(url: string): UseWebSocketReturn {
   }, [url]);
 
   useEffect(() => {
-    shouldReconnect.current = true;
     connect();
     return () => {
       shouldReconnect.current = false;

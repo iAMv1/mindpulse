@@ -73,7 +73,6 @@ export function useStressStream(): UseStressStreamReturn {
   }, []);
 
   useEffect(() => {
-    shouldReconnect.current = true;
     connect();
     return () => {
       shouldReconnect.current = false;
