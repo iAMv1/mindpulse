@@ -43,8 +43,6 @@ def _sample_features() -> dict:
 def client(monkeypatch):
     """Provide a TestClient with inference engine stubbed for speed."""
 
-    history.clear()
-
     def _fake_load():
         engine.set_ready_for_tests(True)
 

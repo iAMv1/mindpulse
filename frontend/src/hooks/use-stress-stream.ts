@@ -82,6 +82,7 @@ export function useStressStream(): UseStressStreamReturn {
     connect();
     return () => {
       shouldReconnect.current = false;
+      sequenceRef.current = 0;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
