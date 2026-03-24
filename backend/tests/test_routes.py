@@ -11,7 +11,7 @@ from app.services import history
 from app.services.inference import engine
 
 
-def _dummy_features() -> dict:
+def _sample_features() -> dict:
     return {
         "hold_time_mean": 120.0,
         "hold_time_std": 10.0,
@@ -78,7 +78,7 @@ def test_health(client: TestClient):
 
 
 def test_inference_history_and_stats(client: TestClient):
-    payload = {"features": _dummy_features(), "user_id": "alice"}
+    payload = {"features": _sample_features(), "user_id": "alice"}
     res = client.post("/api/v1/inference", json=payload)
     assert res.status_code == 200
     body = res.json()
@@ -116,7 +116,7 @@ def test_feedback_and_calibration_defaults(client: TestClient):
 
 
 def test_batch_predict_returns_predictions(client: TestClient):
-    payload = {"features": [_dummy_features(), _dummy_features()], "user_id": "carol"}
+    payload = {"features": [_sample_features(), _sample_features()], "user_id": "carol"}
     res = client.post("/api/v1/batch-predict", json=payload)
     assert res.status_code == 200
     body = res.json()

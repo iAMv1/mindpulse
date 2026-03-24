@@ -34,7 +34,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
-  // prevents state updates and retries after unmount to avoid leaks/console warnings
+  // Prevents state updates and retries after unmount to avoid leaks/console warnings
   const shouldReconnect = useRef(true);
 
   const connect = useCallback(() => {
