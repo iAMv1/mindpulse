@@ -33,6 +33,7 @@ export interface StressResult {
   probabilities: Record<string, number>;
   insights: string[];
   timestamp: number;
+  id?: string;
 }
 
 export interface HistoryPoint {

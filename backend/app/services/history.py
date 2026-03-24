@@ -16,6 +16,11 @@ def append(user_id: str, point: dict):
         _store[user_id] = _store[user_id][-MAX_POINTS:]
 
 
+def clear():
+    """Reset in-memory history (intended for tests)."""
+    _store.clear()
+
+
 def get_history(user_id: str, hours: int = 24) -> List[HistoryPoint]:
     import time
 

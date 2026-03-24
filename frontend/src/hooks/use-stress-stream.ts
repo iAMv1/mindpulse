@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { StressResult } from "@/lib/types";
+import { resolveWsUrl } from "@/lib/config";
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
@@ -12,6 +13,7 @@ interface UseStressStreamReturn {
   history: StressResult[];
   status: ConnectionStatus;
   send: (features: Record<string, number>, userId?: string) => void;
+  reconnect: () => void;
 }
 
 export function useStressStream(): UseStressStreamReturn {
@@ -19,15 +21,31 @@ export function useStressStream(): UseStressStreamReturn {
   const [history, setHistory] = useState<StressResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
+  const sequenceRef = useRef(0);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const manualClose = useRef(false);
+  const shouldReconnect = useRef(true);
 
   const connect = useCallback(() => {
-    const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
+    if (!shouldReconnect.current) return;
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
     try {
       setStatus("connecting");
-      const ws = new WebSocket(url);
-      ws.onopen = () => setStatus("connected");
+      const ws = new WebSocket(resolveWsUrl());
+      ws.onopen = () => shouldReconnect.current && setStatus("connected");
       ws.onclose = () => {
+        if (manualClose.current) {
+          manualClose.current = false;
+          setStatus("disconnected");
+          return;
+        }
+        if (!shouldReconnect.current) return;
         setStatus("disconnected");
         reconnectTimer.current = setTimeout(connect, 3000);
       };
@@ -35,6 +53,8 @@ export function useStressStream(): UseStressStreamReturn {
         try {
           const msg = JSON.parse(e.data);
           if (msg.type === "stress_update") {
+            if (!shouldReconnect.current) return;
+            const id = `${msg.timestamp || Date.now()}-${sequenceRef.current++}`;
             const result: StressResult = {
               score: msg.score,
               level: msg.level,
@@ -42,6 +62,7 @@ export function useStressStream(): UseStressStreamReturn {
               probabilities: msg.probabilities,
               insights: msg.insights || [],
               timestamp: msg.timestamp || Date.now(),
+              id,
             };
             setData(result);
             setHistory((prev) => [...prev.slice(-120), result]);
@@ -51,13 +72,17 @@ export function useStressStream(): UseStressStreamReturn {
       ws.onerror = () => ws.close();
       wsRef.current = ws;
     } catch {
-      setStatus("disconnected");
+      if (shouldReconnect.current) {
+        setStatus("disconnected");
+      }
     }
   }, []);
 
   useEffect(() => {
     connect();
     return () => {
+      shouldReconnect.current = false;
+      sequenceRef.current = 0;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
@@ -69,5 +94,20 @@ export function useStressStream(): UseStressStreamReturn {
     }
   }, []);
 
-  return { data, history, status, send };
+  const reconnect = useCallback(() => {
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
+    if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+    if (wsRef.current) {
+      manualClose.current = true;
+      wsRef.current.close();
+    }
+    connect();
+  }, [connect]);
+
+  return { data, history, status, send, reconnect };
 }

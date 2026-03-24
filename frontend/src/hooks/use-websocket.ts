@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { HistoryPoint } from "@/lib/types";
+import { resolveWsUrl } from "@/lib/config";
 
 export interface StressData {
   score: number;
@@ -33,12 +34,20 @@ export function useWebSocket(url: string): UseWebSocketReturn {
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  // Prevents state updates and retries after unmount to avoid leaks/console warnings
+  const shouldReconnect = useRef(true);
 
   const connect = useCallback(() => {
+    if (!shouldReconnect.current) return;
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
     try {
       const ws = new WebSocket(url);
 
       ws.onopen = () => {
+        if (!shouldReconnect.current) return;
         setConnected(true);
         setError(null);
       };
@@ -47,6 +56,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === "stress_update") {
+            if (!shouldReconnect.current) return;
             const stressData: StressData = {
               score: msg.score,
               level: msg.level,
@@ -65,24 +75,29 @@ export function useWebSocket(url: string): UseWebSocketReturn {
       };
 
       ws.onclose = () => {
+        if (!shouldReconnect.current) return;
         setConnected(false);
         reconnectTimer.current = setTimeout(connect, 3000);
       };
 
       ws.onerror = () => {
+        if (!shouldReconnect.current) return;
         setError("Connection failed");
         ws.close();
       };
 
       wsRef.current = ws;
     } catch (e) {
-      setError("WebSocket unavailable");
+      if (shouldReconnect.current) {
+        setError("WebSocket unavailable");
+      }
     }
   }, [url]);
 
   useEffect(() => {
     connect();
     return () => {
+      shouldReconnect.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       wsRef.current?.close();
     };
