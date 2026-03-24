@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { StressResult } from "@/lib/types";
-import { WS_URL } from "@/lib/config";
+import { resolveWsUrl } from "@/lib/config";
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected";
 
@@ -27,13 +27,16 @@ export function useStressStream(): UseStressStreamReturn {
 
   const connect = useCallback(() => {
     if (!shouldReconnect.current) return;
+    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
     if (reconnectTimer.current) {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
     try {
       setStatus("connecting");
-      const ws = new WebSocket(WS_URL);
+      const ws = new WebSocket(resolveWsUrl());
       ws.onopen = () => shouldReconnect.current && setStatus("connected");
       ws.onclose = () => {
         if (manualClose.current) {

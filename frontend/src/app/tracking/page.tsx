@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useStressStream } from "@/hooks/use-stress-stream";
-import { WS_URL } from "@/lib/config";
+import { resolveWsUrl } from "@/lib/config";
 import { api } from "@/lib/api";
 import type { UserStats } from "@/lib/types";
 
@@ -135,6 +135,7 @@ export default function TrackingPage() {
       ? new Date(data.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
       : null;
   const recentHistory = history.slice(-5).reverse();
+  const wsUrl = resolveWsUrl();
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -153,7 +154,7 @@ export default function TrackingPage() {
         <div className="rounded-xl border border-stressed/40 bg-stressed/10 p-4 text-sm text-muted flex items-center justify-between gap-3">
           <div>
             <div className="font-medium text-white">Waiting for live stream</div>
-            <div>Check that the backend WebSocket is running at {WS_URL}.</div>
+            <div>Check that the backend WebSocket is running at {wsUrl}.</div>
           </div>
           <button
             onClick={reconnect}

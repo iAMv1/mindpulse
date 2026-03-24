@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { HistoryPoint } from "@/lib/types";
+import { resolveWsUrl } from "@/lib/config";
 
 export interface StressData {
   score: number;
