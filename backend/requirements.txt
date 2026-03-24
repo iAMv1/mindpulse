@@ -13,3 +13,5 @@ uvicorn[standard]
 pydantic
 torch
 python-pptx
+slowapi
+httpx
