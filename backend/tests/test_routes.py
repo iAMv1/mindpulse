@@ -43,6 +43,8 @@ def _dummy_features() -> dict:
 def client(monkeypatch):
     """Provide a TestClient with inference engine stubbed for speed."""
 
+    history.clear()
+
     def _fake_load():
         engine.set_ready_for_tests(True)
 
@@ -56,7 +58,6 @@ def client(monkeypatch):
             "timestamp": time.time(),
         }
 
-    history.clear()
     monkeypatch.setattr(engine, "load", _fake_load)
     monkeypatch.setattr(engine, "predict", _fake_predict)
     engine.set_ready_for_tests(True)

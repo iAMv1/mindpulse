@@ -21,6 +21,7 @@ export function useStressStream(): UseStressStreamReturn {
   const [history, setHistory] = useState<StressResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
+  const sequenceRef = useRef(0);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
   const manualClose = useRef(false);
   const shouldReconnect = useRef(true);
@@ -53,6 +54,7 @@ export function useStressStream(): UseStressStreamReturn {
           const msg = JSON.parse(e.data);
           if (msg.type === "stress_update") {
             if (!shouldReconnect.current) return;
+            const id = `${msg.timestamp || Date.now()}-${sequenceRef.current++}`;
             const result: StressResult = {
               score: msg.score,
               level: msg.level,
@@ -60,6 +62,7 @@ export function useStressStream(): UseStressStreamReturn {
               probabilities: msg.probabilities,
               insights: msg.insights || [],
               timestamp: msg.timestamp || Date.now(),
+              id,
             };
             setData(result);
             setHistory((prev) => [...prev.slice(-120), result]);
