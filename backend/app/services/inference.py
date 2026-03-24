@@ -10,7 +10,12 @@ from app.core.config import (
     LABELS,
 )
 
-TEST_MODEL_SENTINEL = "TEST_MODEL_PLACEHOLDER"
+
+class _TestModelPlaceholder:
+    """Placeholder used in tests to satisfy readiness checks."""
+
+    def __repr__(self) -> str:  # pragma: no cover - trivial repr
+        return "<TestModelPlaceholder>"
 
 
 class InferenceEngine:
@@ -61,7 +66,7 @@ class InferenceEngine:
         self._ready = ready
         if ready:
             if self._model is None:
-                self._model = TEST_MODEL_SENTINEL
+                self._model = _TestModelPlaceholder()
         else:
             self._model = None
 
