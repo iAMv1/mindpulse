@@ -222,7 +222,7 @@ export default function TrackingPage() {
               const color =
                 item.level === "NEUTRAL" ? "text-neutral" : item.level === "MILD" ? "text-mild" : "text-stressed";
               return (
-                <div key={`${item.timestamp}-${item.level}-${item.score}`} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
+                <div key={item.timestamp} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
                   <span className="text-xs text-muted">
                     {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </span>
