@@ -10,6 +10,8 @@ from app.core.config import (
     LABELS,
 )
 
+TEST_MODEL_SENTINEL = "TEST_MODEL_PLACEHOLDER"
+
 
 class InferenceEngine:
     """Wraps XGBoost model + DualNormalizer for stress prediction."""
@@ -59,7 +61,7 @@ class InferenceEngine:
         self._ready = ready
         if ready:
             if self._model is None:
-                self._model = object()
+                self._model = TEST_MODEL_SENTINEL
         else:
             self._model = None
 
