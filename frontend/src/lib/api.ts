@@ -3,6 +3,7 @@
 import type { FeatureVector, StressResult, HistoryPoint, CalibrationStatus, UserStats, HealthStatus } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 const STORAGE_KEY = "mindpulse_user_id";
 
@@ -27,10 +28,27 @@ export function getAvailableUsers(): string[] {
   return stored ? [stored] : ["default"];
 }
 
+function buildHeaders(options?: RequestInit): Headers {
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
+
+  if (API_KEY) {
+    headers.set("X-API-Key", API_KEY);
+  }
+
+  if (options?.headers) {
+    new Headers(options.headers).forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  return headers;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...options,
+    headers: buildHeaders(options),
   });
   if (!res.ok) {
     const error = `API error: ${res.status}`;
