@@ -44,7 +44,7 @@ def client(monkeypatch):
     """Provide a TestClient with inference engine stubbed for speed."""
 
     def _fake_load():
-        return None
+        engine.set_ready_for_tests(True)
 
     def _fake_predict(features: dict, user_id: str = "default"):
         return {
@@ -59,12 +59,13 @@ def client(monkeypatch):
     history.clear()
     monkeypatch.setattr(engine, "load", _fake_load)
     monkeypatch.setattr(engine, "predict", _fake_predict)
-    monkeypatch.setattr(engine.__class__, "is_ready", property(lambda self: True))
+    engine.set_ready_for_tests(True)
 
     with TestClient(app) as client:
         yield client
 
     history.clear()
+    engine.set_ready_for_tests(False)
 
 
 def test_health(client: TestClient):

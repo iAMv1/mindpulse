@@ -54,6 +54,15 @@ class InferenceEngine:
     def is_ready(self) -> bool:
         return self._ready and self._model is not None
 
+    def set_ready_for_tests(self, ready: bool = True):
+        """Force readiness flag for tests without loading the full model."""
+        self._ready = ready
+        if ready:
+            if self._model is None:
+                self._model = object()
+        else:
+            self._model = None
+
     def predict(self, features_dict: dict, user_id: str = "default") -> dict:
         """Run inference and return structured result."""
         if not self.is_ready:
