@@ -367,6 +367,62 @@ class PersonalBaseline:
         finally:
             conn.close()
 
+    def get_calibration_status(
+        self, target_samples_per_hour: int = 20, min_hours_covered: int = 4
+    ) -> dict:
+        conn = self._connect()
+        c = conn.cursor()
+        try:
+            rows = c.execute(
+                "SELECT hour, MIN(sample_count) FROM baselines GROUP BY hour"
+            ).fetchall()
+            session_days = c.execute(
+                "SELECT COUNT(DISTINCT date(timestamp_ms/1000, 'unixepoch')) FROM session_history"
+            ).fetchone()
+        finally:
+            conn.close()
+
+        samples_per_hour = {int(hour): int(count or 0) for hour, count in rows}
+        hours_covered = len(samples_per_hour)
+        if samples_per_hour:
+            avg_hour_completion = np.mean(
+                [
+                    min(float(v) / float(max(target_samples_per_hour, 1)), 1.0)
+                    for v in samples_per_hour.values()
+                ]
+            )
+        else:
+            avg_hour_completion = 0.0
+
+        hour_coverage_completion = min(hours_covered / 24.0, 1.0)
+        completion_pct = round(
+            (0.6 * avg_hour_completion + 0.4 * hour_coverage_completion) * 100.0, 1
+        )
+
+        min_samples = min(samples_per_hour.values()) if samples_per_hour else 0
+        is_calibrated = (
+            hours_covered >= int(min_hours_covered)
+            and min_samples >= max(5, int(target_samples_per_hour * 0.25))
+        )
+
+        return {
+            "is_calibrated": bool(is_calibrated),
+            "days_collected": int(session_days[0]) if session_days else 0,
+            "samples_per_hour": samples_per_hour,
+            "completion_pct": completion_pct,
+            "calibration_quality": round(completion_pct / 100.0, 3),
+        }
+
+    def reset(self):
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM baselines")
+            conn.execute("DELETE FROM session_history")
+            conn.execute("DELETE FROM feedback_events")
+            conn.commit()
+        finally:
+            conn.close()
+
 
 # ────────────────────────────────────────────────────────────────
 # 3. Data Loading for Real CSV Training

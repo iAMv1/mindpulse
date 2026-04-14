@@ -37,13 +37,15 @@ export function useWebSocket(url: string): UseWebSocketReturn {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<NodeJS.Timeout>();
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
 
   const connect = useCallback(() => {
     try {
       const ws = new WebSocket(url);
 
       ws.onopen = () => {
+        reconnectAttemptsRef.current = 0;
         setConnected(true);
         setError(null);
       };
@@ -51,6 +53,10 @@ export function useWebSocket(url: string): UseWebSocketReturn {
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          if (msg.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
+            return;
+          }
           if (msg.type === "stress_update") {
             const stressData: StressData = {
               score: msg.score,
@@ -71,7 +77,13 @@ export function useWebSocket(url: string): UseWebSocketReturn {
 
       ws.onclose = () => {
         setConnected(false);
-        reconnectTimer.current = setTimeout(connect, 3000);
+        reconnectAttemptsRef.current += 1;
+        const jitter = Math.floor(Math.random() * 800);
+        const backoff = Math.min(
+          10000,
+          2000 + reconnectAttemptsRef.current * 500 + jitter,
+        );
+        reconnectTimer.current = setTimeout(connect, backoff);
       };
 
       ws.onerror = () => {
@@ -88,7 +100,9 @@ export function useWebSocket(url: string): UseWebSocketReturn {
   useEffect(() => {
     connect();
     return () => {
-      clearTimeout(reconnectTimer.current);
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+      }
       wsRef.current?.close();
     };
   }, [connect]);

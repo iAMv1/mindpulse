@@ -1,6 +1,7 @@
 """MindPulse Backend — WebSocket Manager."""
 
 from __future__ import annotations
+import asyncio
 from typing import List
 from fastapi import WebSocket
 
@@ -20,7 +21,7 @@ class ConnectionManager:
     async def broadcast(self, message: dict):
         for ws in list(self.active):
             try:
-                await ws.send_json(message)
+                await asyncio.wait_for(ws.send_json(message), timeout=2.0)
             except Exception:
                 self.disconnect(ws)
 

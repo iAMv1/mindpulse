@@ -58,6 +58,9 @@ export default function CalibrationPage() {
           <div className="h-2 bg-surface-hover rounded-full overflow-hidden">
             <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${status?.completion_pct ?? 0}%` }} />
           </div>
+          <div className="text-xs text-muted mt-2">
+            Quality Index: {(((status?.calibration_quality ?? 0) * 100)).toFixed(1)}%
+          </div>
         </div>
       </div>
 
