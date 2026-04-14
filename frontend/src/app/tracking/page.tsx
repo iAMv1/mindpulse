@@ -113,6 +113,7 @@ export default function TrackingPage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const prevLevelRef = useRef<string>("UNKNOWN");
   const notifPermissionRef = useRef<boolean>(false);
+  const stressStreakRef = useRef<number>(0);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -139,8 +140,13 @@ export default function TrackingPage() {
   useEffect(() => {
     if (!data) return;
     const currentLevel = data.level;
+    if (currentLevel === "STRESSED" && (data.confidence ?? 0) >= 0.7) {
+      stressStreakRef.current += 1;
+    } else {
+      stressStreakRef.current = 0;
+    }
     if (currentLevel === "STRESSED" && prevLevelRef.current !== "STRESSED") {
-      if (notifPermissionRef.current) {
+      if (notifPermissionRef.current && stressStreakRef.current >= 2) {
         new Notification("⚠️ MindPulse — Stress Alert", {
           body: "Elevated stress detected! Take a moment to breathe deeply.",
           icon: "/favicon.ico",
@@ -192,6 +198,11 @@ export default function TrackingPage() {
           <div className="mt-3 text-xs text-muted">
             Confidence: {data ? `${(data.confidence * 100).toFixed(1)}%` : "--"}
           </div>
+          {data && (
+            <div className="mt-2 text-[11px] text-muted text-center">
+              Model: {data.model_score?.toFixed(1) ?? "--"} · Equation: {data.equation_score?.toFixed(1) ?? "--"}
+            </div>
+          )}
         </div>
 
         <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -209,6 +220,21 @@ export default function TrackingPage() {
         <Insights insights={insights} level={level} />
         <Recommendation score={score} />
       </div>
+
+      {/* Explainability */}
+      {data?.feature_contributions && Object.keys(data.feature_contributions).length > 0 && (
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <h3 className="text-sm text-muted mb-3">Equation Contributors</h3>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+            {Object.entries(data.feature_contributions).map(([key, value]) => (
+              <div key={key} className="rounded-lg bg-surface-hover p-3">
+                <div className="text-[11px] text-muted">{key}</div>
+                <div className="text-lg font-semibold">{Number(value).toFixed(1)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Feedback */}
       <div className="rounded-xl border border-border bg-surface p-4">

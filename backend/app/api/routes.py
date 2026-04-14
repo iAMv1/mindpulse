@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import time
+import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.schemas.stress import (
     InferenceRequest,
@@ -10,10 +11,16 @@ from app.schemas.stress import (
     FeedbackRequest,
     CalibrationStatus,
     HealthResponse,
+    ResetRequest,
 )
 from app.services.inference import engine
 from app.services.websocket_manager import manager
 from app.services import history
+from app.core.config import (
+    CALIBRATION_TARGET_SAMPLES_PER_HOUR,
+    CALIBRATION_MIN_HOURS_COVERED,
+    WS_HEARTBEAT_TIMEOUT_SEC,
+)
 
 router = APIRouter()
 
@@ -66,19 +73,38 @@ async def submit_feedback(req: FeedbackRequest):
 
 @router.get("/calibration/{user_id}", response_model=CalibrationStatus)
 async def get_calibration(user_id: str):
+    baseline = engine._get_baseline(user_id)
+    if baseline:
+        status = baseline.get_calibration_status(
+            target_samples_per_hour=CALIBRATION_TARGET_SAMPLES_PER_HOUR,
+            min_hours_covered=CALIBRATION_MIN_HOURS_COVERED,
+        )
+    else:
+        status = {
+            "is_calibrated": False,
+            "days_collected": 0,
+            "samples_per_hour": {},
+            "completion_pct": 0.0,
+            "calibration_quality": 0.0,
+        }
     return CalibrationStatus(
         user_id=user_id,
-        is_calibrated=False,
-        days_collected=0,
-        samples_per_hour={},
-        completion_pct=0.0,
+        is_calibrated=status["is_calibrated"],
+        days_collected=status["days_collected"],
+        samples_per_hour=status["samples_per_hour"],
+        completion_pct=status["completion_pct"],
+        calibration_quality=status["calibration_quality"],
     )
 
 
 @router.post("/reset")
-async def reset_session(user_id: str = "demo_user"):
+async def reset_session(req: ResetRequest):
     """Clear all in-memory session data for a fresh start."""
+    user_id = req.user_id
     history.reset(user_id)
+    baseline = engine._get_baseline(user_id)
+    if baseline:
+        baseline.reset()
     await manager.broadcast({"type": "session_reset", "user_id": user_id})
     return {"status": "ok", "message": f"Session data cleared for {user_id}"}
 
@@ -142,12 +168,20 @@ async def websocket_stress(ws: WebSocket):
     await manager.connect(ws)
     try:
         while True:
-            data = await ws.receive_text()
+            try:
+                data = await asyncio.wait_for(
+                    ws.receive_text(), timeout=WS_HEARTBEAT_TIMEOUT_SEC
+                )
+            except asyncio.TimeoutError:
+                await ws.send_json({"type": "ping", "timestamp": time.time()})
+                continue
             # Client can send feature vectors for real-time prediction
             import json
 
             try:
                 payload = json.loads(data)
+                if payload.get("type") == "pong":
+                    continue
                 if payload.get("type") == "features":
                     from app.schemas.stress import FeatureVector
 
@@ -157,7 +191,7 @@ async def websocket_stress(ws: WebSocket):
                     )
                     uid = payload.get("user_id", "default")
                     history.append(uid, result)
-                    await ws.send_json({"type": "stress_update", **result})
+                    await ws.send_json({"type": "stress_update", **result, "user_id": uid})
             except (json.JSONDecodeError, KeyError):
                 pass
     except WebSocketDisconnect:

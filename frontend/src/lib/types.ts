@@ -24,13 +24,19 @@ export interface FeatureVector {
   hour_of_day: number;
   day_of_week: number;
   session_duration_min: number;
+  mouse_reentry_count?: number;
+  mouse_reentry_latency_ms?: number;
 }
 
 export interface StressResult {
   score: number;
+  model_score?: number;
+  equation_score?: number;
+  final_score?: number;
   level: "NEUTRAL" | "MILD" | "STRESSED" | "UNKNOWN";
   confidence: number;
   probabilities: Record<string, number>;
+  feature_contributions?: Record<string, number>;
   insights: string[];
   timestamp: number;
   // Raw features for live tiles
@@ -39,6 +45,8 @@ export interface StressResult {
   error_rate?: number;
   click_count?: number;
   mouse_speed_mean?: number;
+  mouse_reentry_count?: number;
+  mouse_reentry_latency_ms?: number;
 }
 
 export interface HistoryPoint {
@@ -54,6 +62,7 @@ export interface CalibrationStatus {
   days_collected: number;
   samples_per_hour: Record<number, number>;
   completion_pct: number;
+  calibration_quality?: number;
 }
 
 export interface UserStats {

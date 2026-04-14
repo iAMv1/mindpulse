@@ -3,7 +3,7 @@ import json
 import threading
 import urllib.request
 from app.ml.data_collector import BehavioralCollector
-from app.ml.feature_extractor import extract_all_features, FEATURE_NAMES
+from app.ml.feature_extractor import extract_feature_dict
 
 # ─── Windows Native Toast Notification (PowerShell, no pip packages needed) ───
 _last_notif_time = 0
@@ -82,15 +82,11 @@ def run_client():
             
             # Send data to backend if there is any activity
             if len(all_keys) > 0 or len(all_mice) > 0:
-                features_arr, _ = extract_all_features(
+                features_dict = extract_feature_dict(
                     all_keys, all_mice, all_ctx,
                     window_start_time_ms=cutoff,
                     session_start_time_ms=session_start
                 )
-                
-                # Convert np.float32 to python floats for JSON
-                features_dict = {name: float(val) for name, val in zip(FEATURE_NAMES, features_arr)}
-                
                 payload = json.dumps({
                     "features": features_dict,
                     "user_id": "demo_user"
