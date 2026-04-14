@@ -46,6 +46,9 @@ MODEL_SCORE_WEIGHT = 0.7
 CALIBRATION_TARGET_SAMPLES_PER_HOUR = 20
 CALIBRATION_MIN_HOURS_COVERED = 4
 
+# WebSocket reliability
+WS_HEARTBEAT_TIMEOUT_SEC = 30.0
+
 # Realistic performance expectations (from research)
 EXPECTED_PERFORMANCE = {
     "universal_model": {

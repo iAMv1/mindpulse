@@ -20,7 +20,7 @@ _DB_PATH = os.path.normpath(
 
 def _connect() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
-    return sqlite3.connect(_DB_PATH, check_same_thread=False)
+    return sqlite3.connect(_DB_PATH)
 
 
 def _init_db():
@@ -70,6 +70,22 @@ def append(user_id: str, point: dict):
         insights = []
     with _LOCK:
         with _connect() as conn:
+            score = float(point.get("score", 0.0))
+            model_score = (
+                float(point["model_score"])
+                if "model_score" in point
+                else score
+            )
+            equation_score = (
+                float(point["equation_score"])
+                if "equation_score" in point
+                else score
+            )
+            final_score = (
+                float(point["final_score"])
+                if "final_score" in point
+                else score
+            )
             conn.execute(
                 """
                 INSERT INTO history (
@@ -82,13 +98,13 @@ def append(user_id: str, point: dict):
                 (
                     user_id,
                     float(point.get("timestamp", time.time())),
-                    float(point.get("score", 0.0)),
+                    score,
                     str(point.get("level", "UNKNOWN")),
                     float(point.get("confidence", 0.0)),
                     json.dumps(insights),
-                    float(point.get("model_score", point.get("score", 0.0))),
-                    float(point.get("equation_score", point.get("score", 0.0))),
-                    float(point.get("final_score", point.get("score", 0.0))),
+                    model_score,
+                    equation_score,
+                    final_score,
                     float(point.get("typing_speed_wpm", 0.0)),
                     int(point.get("rage_click_count", 0)),
                     float(point.get("error_rate", 0.0)),

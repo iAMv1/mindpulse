@@ -19,6 +19,7 @@ from app.services import history
 from app.core.config import (
     CALIBRATION_TARGET_SAMPLES_PER_HOUR,
     CALIBRATION_MIN_HOURS_COVERED,
+    WS_HEARTBEAT_TIMEOUT_SEC,
 )
 
 router = APIRouter()
@@ -168,7 +169,9 @@ async def websocket_stress(ws: WebSocket):
     try:
         while True:
             try:
-                data = await asyncio.wait_for(ws.receive_text(), timeout=45.0)
+                data = await asyncio.wait_for(
+                    ws.receive_text(), timeout=WS_HEARTBEAT_TIMEOUT_SEC
+                )
             except asyncio.TimeoutError:
                 await ws.send_json({"type": "ping", "timestamp": time.time()})
                 continue

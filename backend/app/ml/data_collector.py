@@ -307,6 +307,10 @@ class BehavioralCollector:
                 self._last_context = current
 
     def _consume_mouse_reentry_flags(self, ts: float) -> Tuple[bool, bool]:
+        """
+        Return and clear current mouse re-entry flags as:
+        (reentry_after_idle, reentry_after_context_switch).
+        """
         with self._lock:
             idle_reentry = False
             if self._last_mouse_event_ts is not None:

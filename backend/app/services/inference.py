@@ -156,8 +156,11 @@ class InferenceEngine:
         """Run inference and return structured result."""
         missing = [f for f in FEATURE_NAMES if f not in features_dict]
         if missing:
+            preview = ", ".join(missing[:3])
+            if len(missing) > 3:
+                preview = f"{preview}, ... (+{len(missing) - 3} more)"
             return self._fallback_result(
-                message=f"Missing required features: {', '.join(missing[:3])}"
+                message=f"Missing required features: {preview}"
             )
 
         # Convert dict to numpy array in correct order
@@ -170,7 +173,7 @@ class InferenceEngine:
         )
 
         if not self.is_ready:
-            model_score = equation_score
+            model_score = 0.0
             final_score = equation_score
             level = self._level_from_score(final_score)
             confidence = 0.45

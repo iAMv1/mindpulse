@@ -21,6 +21,7 @@ Feature Breakdown (23 raw features):
 
 import math
 import time
+import bisect
 from datetime import datetime
 from typing import List, Tuple
 
@@ -293,10 +294,8 @@ def extract_mouse_reentry_features(
     if context_events:
         context_times = sorted(e.timestamp for e in context_events)
         mouse_times = sorted(e.timestamp for e in mouse_events)
-        j = 0
         for ctx_ts in context_times:
-            while j < len(mouse_times) and mouse_times[j] <= ctx_ts:
-                j += 1
+            j = bisect.bisect_right(mouse_times, ctx_ts)
             if j < len(mouse_times):
                 latencies.append(max(mouse_times[j] - ctx_ts, 0.0))
 
