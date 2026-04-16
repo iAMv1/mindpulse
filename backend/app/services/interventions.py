@@ -23,6 +23,15 @@ class UserInterventionState:
 class InterventionEngine:
     ALERT_COOLDOWN_SEC = 180
     SNOOZE_SEC = 600
+    HIGH_RISK_STREAK_THRESHOLD = 2
+    CRITICAL_SCORE_THRESHOLD = 85
+    CRITICAL_CONFIDENCE_THRESHOLD = 0.7
+    BASELINE_EFFECTIVENESS = {
+        "breathing_reset": 0.62,
+        "posture_eye_break": 0.58,
+        "cognitive_reset": 0.55,
+        "hydrate_walk": 0.57,
+    }
 
     def __init__(self):
         self._state: dict[str, UserInterventionState] = {}
@@ -76,7 +85,7 @@ class InterventionEngine:
                     "Repeat 4 cycles",
                     "Relax shoulders and jaw",
                 ],
-                "base_score": 0.62,
+                "base_score": self.BASELINE_EFFECTIVENESS["breathing_reset"],
             },
             {
                 "intervention_type": "posture_eye_break",
@@ -87,7 +96,7 @@ class InterventionEngine:
                     "Neck and shoulder stretch",
                     "Sit back and reset posture",
                 ],
-                "base_score": 0.58,
+                "base_score": self.BASELINE_EFFECTIVENESS["posture_eye_break"],
             },
             {
                 "intervention_type": "cognitive_reset",
@@ -98,7 +107,7 @@ class InterventionEngine:
                     "Choose one priority task",
                     "Work in a focused 10-minute sprint",
                 ],
-                "base_score": 0.55,
+                "base_score": self.BASELINE_EFFECTIVENESS["cognitive_reset"],
             },
             {
                 "intervention_type": "hydrate_walk",
@@ -109,7 +118,7 @@ class InterventionEngine:
                     "Walk away from screen",
                     "Resume with a lighter task first",
                 ],
-                "base_score": 0.57,
+                "base_score": self.BASELINE_EFFECTIVENESS["hydrate_walk"],
             },
         ]
 
@@ -160,7 +169,11 @@ class InterventionEngine:
         trend = self._trend_label(user_id)
 
         is_high_risk = level == "STRESSED" and confidence >= 0.65 and score >= 70
-        is_very_high = level == "STRESSED" and score >= 85 and confidence >= 0.7
+        is_very_high = (
+            level == "STRESSED"
+            and score >= self.CRITICAL_SCORE_THRESHOLD
+            and confidence >= self.CRITICAL_CONFIDENCE_THRESHOLD
+        )
         is_moderate_risk = score >= 55 or level == "MILD"
         if is_high_risk:
             state.risk_streak += 1
@@ -186,7 +199,7 @@ class InterventionEngine:
             if now < state.snooze_until:
                 alert_state = "EARLY_WARNING" if is_moderate_risk else "NORMAL"
             elif (
-                is_very_high or state.risk_streak >= 2
+                is_very_high or state.risk_streak >= self.HIGH_RISK_STREAK_THRESHOLD
             ) and now - state.last_alert_at >= self.ALERT_COOLDOWN_SEC:
                 alert_state = "BREAK_RECOMMENDED"
                 state.last_alert_at = now

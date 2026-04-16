@@ -109,6 +109,9 @@ function Recommendation({ score }: { score: number }) {
 
 // ─── Main Page ───
 export default function TrackingPage() {
+  const MIN_STRESS_STREAK_FOR_ALERT = 2;
+  const CRITICAL_STRESS_SCORE = 85;
+  const MIN_CONFIDENCE_FOR_CRITICAL_ALERT = 0.7;
   const { data, status } = useStressStream();
   const [stats, setStats] = useState<UserStats | null>(null);
   const prevLevelRef = useRef<string>("UNKNOWN");
@@ -168,7 +171,11 @@ export default function TrackingPage() {
     } else {
       stressStreakRef.current = 0;
     }
-    const shouldAlert = (data.alert_state === "BREAK_RECOMMENDED" && stressStreakRef.current >= 2) || (data.score >= 85 && data.confidence >= 0.7);
+    const shouldAlert =
+      (data.alert_state === "BREAK_RECOMMENDED" &&
+        stressStreakRef.current >= MIN_STRESS_STREAK_FOR_ALERT) ||
+      (data.score >= CRITICAL_STRESS_SCORE &&
+        data.confidence >= MIN_CONFIDENCE_FOR_CRITICAL_ALERT);
     if (shouldAlert && prevLevelRef.current !== "STRESSED") {
       if (notifPermissionRef.current) {
         new Notification("⚠️ MindPulse — Stress Alert", {

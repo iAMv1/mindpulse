@@ -358,7 +358,7 @@ def intervention_effectiveness(user_id: str) -> dict[str, dict]:
             entry["not_helped"] += 1
         elif action == "skipped":
             entry["skipped"] += 1
-        if float(recovery_score) != 0.0:
+        if abs(float(recovery_score)) > 1e-9:
             entry["n"] += 1
             entry["mean_recovery"] += float(recovery_score)
     for key, entry in summary.items():

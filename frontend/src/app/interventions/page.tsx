@@ -13,11 +13,13 @@ export default function InterventionsPage() {
     api.interventionHistory("demo_user", 168).then(setEvents).catch(() => {});
   }, []);
 
-  const helpedEvents = events.filter((e) => e.action === "helped");
-  const meanRecovery =
-    helpedEvents.length > 0
-      ? (helpedEvents.reduce((acc, e) => acc + (e.recovery_score || 0), 0) / helpedEvents.length).toFixed(1)
-      : "0.0";
+  const calculateMeanRecovery = (allEvents: InterventionEvent[]) => {
+    const helpedEvents = allEvents.filter((e) => e.action === "helped");
+    if (helpedEvents.length === 0) return "0.0";
+    const avg = helpedEvents.reduce((acc, e) => acc + (e.recovery_score || 0), 0) / helpedEvents.length;
+    return avg.toFixed(1);
+  };
+  const meanRecovery = calculateMeanRecovery(events);
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
