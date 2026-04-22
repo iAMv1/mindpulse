@@ -412,6 +412,46 @@ class PersonalBaseline:
             "calibration_quality": round(completion_pct / 100.0, 3),
         }
 
+    def get_feedback_bias(self) -> float:
+        """
+        Calculates a bias offset based on recent user feedback.
+        If user often says 'Actually Calm' (NEUTRAL) when model says 'STRESSED',
+        this returns a negative value to lower the score.
+        """
+        conn = self._connect()
+        try:
+            # Look at last 5 feedback events
+            rows = conn.execute(
+                """
+                SELECT model_label, user_feedback, score 
+                FROM feedback_events 
+                ORDER BY timestamp_ms DESC 
+                LIMIT 5
+                """
+            ).fetchall()
+        finally:
+            conn.close()
+
+        if not rows:
+            return 0.0
+
+        offsets = []
+        for model_label, user_feedback, score in rows:
+            # Basic mapping: NEUTRAL=25, MILD=55, STRESSED=85
+            level_map = {"NEUTRAL": 25, "MILD": 55, "STRESSED": 85}
+            target = level_map.get(user_feedback, 50)
+            
+            # If the score was saved as 0.0, we use the model_label as proxy
+            current = score if score > 0 else level_map.get(model_label, 50)
+            
+            # The bias needed to get from 'current' to 'target'
+            offsets.append(target - current)
+
+        # Average the offsets, weighted toward most recent (already sorted desc)
+        weights = [1.0, 0.8, 0.6, 0.4, 0.2][:len(offsets)]
+        weighted_sum = sum(o * w for o, w in zip(offsets, weights))
+        return float(weighted_sum / sum(weights))
+
     def reset(self):
         conn = self._connect()
         try:

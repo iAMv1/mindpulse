@@ -73,6 +73,29 @@ def _init_db():
             ON intervention_events(user_id, timestamp)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS wellness_checkins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                timestamp REAL NOT NULL,
+                energy_level TEXT NOT NULL,
+                sleep_quality TEXT NOT NULL,
+                note TEXT DEFAULT ''
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS journal_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                timestamp REAL NOT NULL,
+                content TEXT NOT NULL,
+                entry_type TEXT DEFAULT 'insight'
+            )
+            """
+        )
         conn.commit()
 
 
@@ -367,3 +390,57 @@ def intervention_effectiveness(user_id: str) -> dict[str, dict]:
         else:
             entry["mean_recovery"] = 0.0
     return summary
+
+
+def save_wellness_checkin(user_id: str, energy: str, sleep: str, note: str = ""):
+    with _LOCK:
+        with _connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO wellness_checkins (user_id, timestamp, energy_level, sleep_quality, note)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, time.time(), energy, sleep, note),
+            )
+            conn.commit()
+
+
+def get_wellness_history(user_id: str, limit: int = 30) -> list[dict]:
+    with _LOCK:
+        with _connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT timestamp, energy_level, sleep_quality, note
+                FROM wellness_checkins
+                WHERE user_id=?
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+    return [
+        {"timestamp": r[0], "energy": r[1], "sleep": r[2], "note": r[3]} for r in rows
+    ]
+
+
+def save_journal_entry(user_id: str, content: str, entry_type: str = "insight"):
+    with _LOCK:
+        with _connect() as conn:
+            conn.execute(
+                "INSERT INTO journal_entries (user_id, timestamp, content, entry_type) VALUES (?, ?, ?, ?)",
+                (user_id, time.time(), content, entry_type),
+            )
+            conn.commit()
+
+
+def get_journal_entries(user_id: str, limit: int = 50) -> list[dict]:
+    with _LOCK:
+        with _connect() as conn:
+            rows = conn.execute(
+                "SELECT id, timestamp, content, entry_type FROM journal_entries WHERE user_id=? ORDER BY timestamp DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+    return [
+        {"id": str(r[0]), "timestamp": r[1], "content": r[2], "entry_type": r[3]}
+        for r in rows
+    ]

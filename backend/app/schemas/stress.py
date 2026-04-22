@@ -105,6 +105,7 @@ class FeedbackRequest(BaseModel):
     timestamp: float
     predicted_level: str
     actual_level: str
+    score: float = 0.0  # The snapshot score when feedback was given
 
 
 class HealthResponse(BaseModel):
@@ -137,3 +138,30 @@ class InterventionEvent(BaseModel):
     score_after: float = 0.0
     recovery_score: float = 0.0
     notes: str = ""
+
+
+class WellnessCheckinRequest(BaseModel):
+    user_id: str = "default"
+    energy: str
+    sleep: str
+    note: Optional[str] = ""
+
+
+class WellnessCheckinResponse(BaseModel):
+    timestamp: float
+    energy: str
+    sleep: str
+    note: Optional[str]
+
+
+class JournalEntryRequest(BaseModel):
+    user_id: str = "default"
+    content: str
+    entry_type: Optional[str] = "insight"
+
+
+class JournalEntryResponse(BaseModel):
+    id: str
+    timestamp: float
+    content: str
+    entry_type: str

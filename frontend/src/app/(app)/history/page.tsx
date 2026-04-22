@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useStressStream } from "@/hooks/use-stress-stream";
 import type { HistoryPoint, UserStats, InterventionEvent } from "@/lib/types";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts";
 import { Clock, TrendingUp, Activity } from "lucide-react";
 
 const LEVEL_MAP: Record<string, { label: string; color: string }> = {
-  NEUTRAL: { label: "Good", color: "#22c55e" },
-  MILD: { label: "Dipping", color: "#d97706" },
-  STRESSED: { label: "Low", color: "#dc2626" },
+  NEUTRAL: { label: "Calm", color: "#22c55e" },
+  MILD: { label: "Mild", color: "#d97706" },
+  STRESSED: { label: "Stressed", color: "#dc2626" },
 };
 
 const ACTION_MAP: Record<string, { label: string; emoji: string }> = {
@@ -29,36 +30,127 @@ export default function HistoryPage() {
   const [stats, setStats] = useState<UserStats | null>(null);
   const [interventions, setInterventions] = useState<InterventionEvent[]>([]);
   const [hours, setHours] = useState(24);
+  const [customUserId, setCustomUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+    const activeUserId = customUserId || userId;
     Promise.all([
-      api.history(userId, hours).catch(() => { setError("Couldn't read your rhythm — try again?"); return []; }),
-      api.stats(userId).catch(() => null),
-      api.interventionHistory(userId, Math.max(24, hours)).catch(() => []),
+      api.history(activeUserId, hours).catch(() => { setError("Couldn't read rhythm — check the username?"); return []; }),
+      api.stats(activeUserId).catch(() => null),
+      api.interventionHistory(activeUserId, Math.max(24, hours)).catch(() => []),
     ]).then(([h, s, i]) => {
       setHistory(h);
       setStats(s);
       setInterventions(i);
       setLoading(false);
     });
-  }, [hours, userId]);
+  }, [hours, userId, customUserId]);
 
-  const chartData = history.map((h) => ({
-    time: new Date(h.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    score: h.score,
-    energy: 100 - h.score,
-    level: h.level,
-  }));
+  // Real-time integration
+  const { data: wsData } = useStressStream();
+  
+  useEffect(() => {
+    if (wsData && wsData.timestamp) {
+      setHistory(prev => {
+        // Dedup: ensure we don't append a result that's older or identical to our last fetched data
+        if (prev.length > 0 && prev[prev.length - 1].timestamp >= wsData.timestamp) return prev;
+        
+        // Convert to history point logic
+        const newPoint = {
+          timestamp: wsData.timestamp,
+          score: wsData.score,
+          level: wsData.level,
+          insights: wsData.insights || [],
+        };
+        
+        return [...prev, newPoint];
+      });
+    }
+  }, [wsData]);
+
+  // Helper to aggregate data based on time range
+  const getAggregatedData = () => {
+    if (history.length === 0) return [];
+
+    // Bucket sizes (in seconds)
+    // 6h -> 2m bucket
+    // 12h -> 5m bucket
+    // 24h -> 15m bucket
+    // 48h -> 30m bucket
+    // 7d -> 2h bucket
+    let bucketSize = 120; // Default 2 min
+    if (hours === 12) bucketSize = 300;
+    if (hours === 24) bucketSize = 900;
+    if (hours === 48) bucketSize = 1800;
+    if (hours === 168) bucketSize = 7200;
+
+    const buckets: Record<number, { sum: number; count: number; timestamp: number }> = {};
+
+    history.forEach((h) => {
+      const bucketIdx = Math.floor(h.timestamp / bucketSize) * bucketSize;
+      if (!buckets[bucketIdx]) {
+        buckets[bucketIdx] = { sum: 0, count: 0, timestamp: bucketIdx };
+      }
+      buckets[bucketIdx].sum += h.score;
+      buckets[bucketIdx].count += 1;
+    });
+
+    return Object.values(buckets)
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map((b) => {
+        const avgScore = b.sum / b.count;
+        const date = new Date(b.timestamp * 1000);
+        
+        let timeStr = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        if (hours > 24) {
+          timeStr = `${date.toLocaleDateString([], { month: "short", day: "numeric" })} ${timeStr}`;
+        }
+
+        return {
+          time: timeStr,
+          timestamp: b.timestamp,
+          score: avgScore,
+          stress: avgScore,
+          level: avgScore > 65 ? "STRESSED" : avgScore > 35 ? "MILD" : "NEUTRAL",
+        };
+      });
+  };
+
+  const chartData = getAggregatedData();
 
   return (
     <div className="p-8 space-y-8 max-w-6xl mx-auto">
-      <div>
-        <h1 className="text-3xl font-light tracking-tight text-[#F2EFE9]">History</h1>
-        <p className="text-sm text-[#857F75] mt-1.5">Your rhythm over time</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-light tracking-tight text-[#F2EFE9]">Pulse History</h1>
+          <p className="text-sm text-[#857F75] mt-1.5">Your stress patterns over time</p>
+        </div>
+        
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] uppercase font-bold text-[#857F75]/60 px-1 tracking-widest">Override Patient ID</label>
+          <div className="flex bg-[#141420] border border-[#1c1c2e] rounded-lg overflow-hidden focus-within:border-[#5b4fc4]/50 transition-colors">
+            <input 
+              type="text" 
+              placeholder={userId || "Enter username..."}
+              className="bg-transparent text-xs px-4 py-2 border-none outline-none text-[#F2EFE9] w-48 placeholder:text-[#857F75]/30"
+              value={customUserId}
+              onChange={(e) => setCustomUserId(e.target.value)}
+            />
+            {customUserId && (
+              <button 
+                onClick={() => setCustomUserId("")}
+                className="px-3 text-[#dc2626] hover:bg-[#dc2626]/10 transition-colors"
+                title="Reset to your profile"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -88,7 +180,7 @@ export default function HistoryPage() {
       <div className="rounded-xl border border-[#1c1c2e] bg-[#141420] p-6">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="w-4 h-4 text-[#5b4fc4]" />
-          <h3 className="text-sm text-[#857F75] font-medium">Energy timeline</h3>
+          <h3 className="text-sm text-[#857F75] font-medium">Stress timeline</h3>
         </div>
         {loading ? (
           <div className="h-[300px] flex items-center justify-center">
@@ -107,15 +199,22 @@ export default function HistoryPage() {
                   <stop offset="100%" stopColor="#5b4fc4" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="time" tick={{ fill: "#857F75", fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis 
+                dataKey="time" 
+                tick={{ fill: "#857F75", fontSize: 10 }} 
+                axisLine={false} 
+                tickLine={false}
+                minTickGap={30}
+              />
               <YAxis domain={[0, 100]} tick={{ fill: "#857F75", fontSize: 11 }} axisLine={false} tickLine={false} width={30} />
               <Tooltip
                 contentStyle={{ background: "#0a0a0f", border: "1px solid #1c1c2e", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}
                 labelStyle={{ color: "#857F75" }}
+                formatter={(val: number) => [val.toFixed(1), "Stress"]}
               />
-              <ReferenceLine y={60} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.2} label={{ value: "Good", fill: "#22c55e", fontSize: 10, opacity: 0.5 }} />
-              <ReferenceLine y={30} stroke="#d97706" strokeDasharray="4 4" strokeOpacity={0.2} label={{ value: "Dipping", fill: "#d97706", fontSize: 10, opacity: 0.5 }} />
-              <Area type="monotone" dataKey="energy" stroke="#5b4fc4" fill="url(#energyGrad)" strokeWidth={2} dot={false} />
+              <ReferenceLine y={25} stroke="#22c55e" strokeDasharray="4 4" strokeOpacity={0.2} label={{ value: "Calm", fill: "#22c55e", fontSize: 10, opacity: 0.5 }} />
+              <ReferenceLine y={65} stroke="#dc2626" strokeDasharray="4 4" strokeOpacity={0.2} label={{ value: "Stressed", fill: "#dc2626", fontSize: 10, opacity: 0.5 }} />
+              <Area type="monotone" dataKey="stress" stroke="#5b4fc4" fill="url(#energyGrad)" strokeWidth={2} dot={hours <= 12} />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -126,18 +225,18 @@ export default function HistoryPage() {
         <div className="rounded-xl border border-[#1c1c2e] bg-[#141420] p-5">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-3.5 h-3.5 text-[#5b4fc4]" />
-            <span className="text-[11px] text-[#857F75] font-medium uppercase tracking-wider">Avg energy</span>
+            <span className="text-[11px] text-[#857F75] font-medium uppercase tracking-wider">Avg stress</span>
           </div>
           <div className="text-2xl font-light text-[#F2EFE9] tabular-nums">
-            {stats?.avg_score ? (100 - stats.avg_score).toFixed(1) : "--"}
+            {stats?.avg_score ? stats.avg_score.toFixed(1) : "--"}
           </div>
         </div>
         <div className="rounded-xl border border-[#1c1c2e] bg-[#141420] p-5">
           <div className="flex items-center gap-2 mb-2">
-            <Clock className="w-3.5 h-3.5 text-[#d97706]" />
-            <span className="text-[11px] text-[#857F75] font-medium uppercase tracking-wider">Low energy %</span>
+            <Clock className="w-3.5 h-3.5 text-[#dc2626]" />
+            <span className="text-[11px] text-[#857F75] font-medium uppercase tracking-wider">High stress %</span>
           </div>
-          <div className="text-2xl font-light text-[#d97706] tabular-nums">{stats?.stressed_pct ?? 0}%</div>
+          <div className="text-2xl font-light text-[#dc2626] tabular-nums">{stats?.stressed_pct ?? 0}%</div>
         </div>
         <div className="rounded-xl border border-[#1c1c2e] bg-[#141420] p-5">
           <div className="flex items-center gap-2 mb-2">
@@ -158,7 +257,7 @@ export default function HistoryPage() {
             return (
               <div key={i} className="flex items-center justify-between py-2.5 border-b border-[#1c1c2e]/50 last:border-0">
                 <span className="text-xs text-[#857F75] tabular-nums">{new Date(h.timestamp * 1000).toLocaleTimeString()}</span>
-                <span className="text-sm font-light tabular-nums text-[#F2EFE9]">{(100 - h.score).toFixed(1)}</span>
+                <span className="text-sm font-light tabular-nums text-[#F2EFE9]">{h.score.toFixed(1)}</span>
                 <span className="text-xs font-medium" style={{ color: mapped.color }}>{mapped.label}</span>
               </div>
             );

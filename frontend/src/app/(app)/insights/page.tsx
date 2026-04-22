@@ -31,9 +31,9 @@ const ENERGY_COLORS = {
 const BREAK_COLORS = ["#5b4fc4", "#22c55e", "#d97706", "#3b82f6"];
 
 // ─── Hourly Energy Bar ───
-function BestHoursChart({ data }: { data: { hour: string; energy: number }[] }) {
-  const hasData = data.some((d) => d.energy > 0);
-  const bestHour = data.filter((d) => d.energy > 0).reduce((a, b) => (a.energy > b.energy ? a : b), data[0]);
+function BestHoursChart({ data }: { data: { hour: string; calm: number }[] }) {
+  const hasData = data.some((d) => d.calm > 0);
+  const bestHour = data.filter((d) => d.calm > 0).reduce((a, b) => (a.calm > b.calm ? a : b), data[0]);
 
   if (!hasData) {
     return (
@@ -41,7 +41,7 @@ function BestHoursChart({ data }: { data: { hour: string; energy: number }[] }) 
         <div className="flex items-center gap-2 mb-4">
           <Clock size={18} style={{ color: "#5b4fc4" }} />
           <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
-            Your best hours
+            Your calmest hours
           </h3>
         </div>
         <div className="h-[200px] flex items-center justify-center">
@@ -58,11 +58,11 @@ function BestHoursChart({ data }: { data: { hour: string; energy: number }[] }) 
       <div className="flex items-center gap-2 mb-4">
         <Clock size={18} style={{ color: "#5b4fc4" }} />
         <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
-          Your best hours
+          Your calmest hours
         </h3>
       </div>
       <p className="text-sm mb-4" style={{ color: "#857F75" }}>
-        You&apos;re typically most focused{" "}
+        You&apos;re typically most calm{" "}
         <span style={{ color: "#22c55e" }}>{bestHour?.hour}</span>
       </p>
       <ResponsiveContainer width="100%" height={200}>
@@ -78,11 +78,11 @@ function BestHoursChart({ data }: { data: { hour: string; energy: number }[] }) 
               color: "#F2EFE9",
             }}
           />
-          <Bar dataKey="energy" radius={[4, 4, 0, 0]}>
+          <Bar dataKey="calm" radius={[4, 4, 0, 0]}>
             {data.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.energy > 60 ? "#22c55e" : entry.energy > 40 ? "#d97706" : "#dc2626"}
+                fill={entry.calm > 60 ? "#22c55e" : entry.calm > 40 ? "#d97706" : "#dc2626"}
               />
             ))}
           </Bar>
@@ -93,10 +93,10 @@ function BestHoursChart({ data }: { data: { hour: string; energy: number }[] }) 
 }
 
 // ─── Day of Week Pattern ───
-function DayOfWeekChart({ data }: { data: { day: string; energy: number }[] }) {
-  const hasData = data.some((d) => d.energy > 0);
-  const worstDay = data.filter((d) => d.energy > 0).reduce((a, b) => (a.energy < b.energy ? a : b), data[0]);
-  const bestDay = data.filter((d) => d.energy > 0).reduce((a, b) => (a.energy > b.energy ? a : b), data[0]);
+function DayOfWeekChart({ data }: { data: { day: string; calm: number }[] }) {
+  const hasData = data.some((d) => d.calm > 0);
+  const worstDay = data.filter((d) => d.calm > 0).reduce((a, b) => (a.calm < b.calm ? a : b), data[0]);
+  const bestDay = data.filter((d) => d.calm > 0).reduce((a, b) => (a.calm > b.calm ? a : b), data[0]);
 
   if (!hasData) {
     return (
@@ -125,8 +125,8 @@ function DayOfWeekChart({ data }: { data: { day: string; energy: number }[] }) {
         </h3>
       </div>
       <p className="text-sm mb-4" style={{ color: "#857F75" }}>
-        <span style={{ color: "#22c55e" }}>{bestDay?.day}s</span> are your best days ·{" "}
-        <span style={{ color: "#d97706" }}>{worstDay?.day}s</span> tend to be harder
+        <span style={{ color: "#22c55e" }}>{bestDay?.day}s</span> are your calmest days ·{" "}
+        <span style={{ color: "#dc2626" }}>{worstDay?.day}s</span> tend to be more stressful
       </p>
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={data}>
@@ -141,7 +141,7 @@ function DayOfWeekChart({ data }: { data: { day: string; energy: number }[] }) {
               color: "#F2EFE9",
             }}
           />
-          <Bar dataKey="energy" fill="#5b4fc4" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="calm" fill="#5b4fc4" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -235,7 +235,7 @@ function BreakEffectivenessChart({
 // ─── Weekly Wins ───
 function WeeklyWins({ stats }: { stats: { goodDays: number; breaksHelped: number; streak: number } }) {
   const badges = [
-    { icon: <Award size={20} style={{ color: "#22c55e" }} />, label: `${stats.goodDays} good energy days` },
+    { icon: <Award size={20} style={{ color: "#22c55e" }} />, label: `${stats.goodDays} calm days` },
     { icon: <Zap size={20} style={{ color: "#d97706" }} />, label: `${stats.breaksHelped} breaks that helped` },
     { icon: <TrendingUp size={20} style={{ color: "#5b4fc4" }} />, label: `${stats.streak}-day streak` },
   ];
@@ -270,8 +270,8 @@ function WeeklyWins({ stats }: { stats: { goodDays: number; breaksHelped: number
 export default function InsightsPage() {
   const { userId } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [hourlyData, setHourlyData] = useState<{ hour: string; energy: number }[]>([]);
-  const [dayOfWeekData, setDayOfWeekData] = useState<{ day: string; energy: number }[]>([]);
+  const [hourlyData, setHourlyData] = useState<{ hour: string; calm: number }[]>([]);
+  const [dayOfWeekData, setDayOfWeekData] = useState<{ day: string; calm: number }[]>([]);
   const [breakEffectiveness, setBreakEffectiveness] = useState<
     { name: string; helped: number; total: number }[]
   >([]);
@@ -295,13 +295,13 @@ export default function InsightsPage() {
           const date = new Date(entry.timestamp * 1000);
           const hour = date.getHours();
           const day = date.getDay();
-          const energy = 100 - entry.score;
+          const calmIdx = 100 - entry.score;
 
           if (!hourMap.has(hour)) hourMap.set(hour, []);
-          hourMap.get(hour)!.push(energy);
+          hourMap.get(hour)!.push(calmIdx);
 
           if (!dayMap.has(day)) dayMap.set(day, []);
-          dayMap.get(day)!.push(energy);
+          dayMap.get(day)!.push(calmIdx);
         });
 
         // Build hourly data
@@ -310,7 +310,7 @@ export default function InsightsPage() {
           const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
           return {
             hour: `${h}:00`,
-            energy: avg !== null ? Math.round(avg) : 0,
+            calm: avg !== null ? Math.round(avg) : 0,
           };
         });
         setHourlyData(hourly);
@@ -319,7 +319,7 @@ export default function InsightsPage() {
         const dayOfWeek = DAY_LABELS.map((day, idx) => {
           const values = dayMap.get(idx) || [];
           const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
-          return { day, energy: avg !== null ? Math.round(avg) : 0 };
+          return { day, calm: avg !== null ? Math.round(avg) : 0 };
         });
         setDayOfWeekData(dayOfWeek);
 

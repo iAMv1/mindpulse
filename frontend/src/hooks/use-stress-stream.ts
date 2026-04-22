@@ -13,8 +13,24 @@ interface UseStressStreamReturn {
 }
 
 export function useStressStream(): UseStressStreamReturn {
-  const [data, setData] = useState<StressResult | null>(null);
-  const [history, setHistory] = useState<StressResult[]>([]);
+  const [data, setData] = useState<StressResult | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = sessionStorage.getItem("mindpulse_last_data");
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [history, setHistory] = useState<StressResult[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = sessionStorage.getItem("mindpulse_last_history");
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) {}
+    }
+    return [];
+  });
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -100,7 +116,16 @@ export function useStressStream(): UseStressStreamReturn {
               recovery_score: msg.recovery_score ?? 0,
             };
             setData(result);
-            setHistory((prev) => [...prev.slice(-120), result]);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("mindpulse_last_data", JSON.stringify(result));
+            }
+            setHistory((prev) => {
+              const next = [...prev.slice(-120), result];
+              if (typeof window !== "undefined") {
+                sessionStorage.setItem("mindpulse_last_history", JSON.stringify(next));
+              }
+              return next;
+            });
           } else if (msg.type === "session_reset") {
             setData(null);
             setHistory([]);

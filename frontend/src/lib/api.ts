@@ -61,10 +61,16 @@ export const api = {
     request<UserStats>(`/stats?user_id=${userId}`),
   calibration: (userId: string = "default") =>
     request<CalibrationStatus>(`/calibration/${userId}`),
-  feedback: (predicted: string, actual: string, userId: string = "default") =>
+  feedback: (predicted: string, actual: string, userId: string = "default", score: number = 0) =>
     request("/feedback", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, predicted_level: predicted, actual_level: actual, timestamp: Date.now() }),
+      body: JSON.stringify({
+        user_id: userId,
+        predicted_level: predicted,
+        actual_level: actual,
+        timestamp: Date.now(),
+        score,
+      }),
     }),
   reset: (userId: string = "demo_user") =>
     request("/reset", {
@@ -120,6 +126,26 @@ export const api = {
   checkDueBreaks: (userId: string = "default") =>
     request<{ due_break: { type: string; title: string; message: string; break_id: string; intervention_type: string } | null }>(
       `/interventions/check-due-breaks?user_id=${userId}`
+    ),
+
+  // Wellness
+  saveWellnessCheckin: (userId: string = "default", energy: string, sleep: string, note?: string) =>
+    request("/wellness/checkin", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, energy, sleep, note }),
+    }),
+  getWellnessHistory: (userId: string = "default", limit: number = 30) =>
+    request<{ timestamp: number; energy: string; sleep: string; note: string }[]>(
+      `/wellness/history?user_id=${userId}&limit=${limit}`
+    ),
+  saveJournalEntry: (userId: string = "default", content: string, entryType: string = "insight") =>
+    request("/journal/entry", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, content, entry_type: entryType }),
+    }),
+  getJournalEntries: (userId: string = "default", limit: number = 50) =>
+    request<{ id: string; timestamp: number; content: string; entry_type: string }[]>(
+      `/journal/entries?user_id=${userId}&limit=${limit}`
     ),
 };
 

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sun, Moon, Battery, BatteryCharging, BatteryMedium, Calendar, TrendingUp, TrendingDown, ArrowUp, ArrowDown, Minus, Sparkles, ChevronRight, BarChart3 } from "lucide-react";
+import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number];
 
@@ -61,14 +63,50 @@ export default function WellnessPage() {
   const [selectedEnergy, setSelectedEnergy] = useState<EnergyLevel | null>(null);
   const [selectedSleep, setSelectedSleep] = useState<SleepQuality | null>(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setIsReady(true), 200);
-    return () => clearTimeout(t);
-  }, []);
+  const { userId } = useAuth();
+  const [history, setHistory] = useState<DailyCheckIn[]>([]);
+  const [journal, setJournal] = useState<JournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleCheckIn = () => {
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      api.getWellnessHistory(userId).catch(() => []),
+      api.getJournalEntries(userId).catch(() => []),
+    ]).then(([h, j]) => {
+      // Map API response to Component types
+      setHistory(h.map(item => ({
+        date: new Date(item.timestamp * 1000).toLocaleDateString([], { weekday: 'short' }),
+        energy: item.energy as EnergyLevel,
+        sleep: item.sleep as SleepQuality,
+        note: item.note
+      })));
+      setJournal(j.map(item => ({
+        id: item.id,
+        date: new Date(item.timestamp * 1000).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+        insight: item.content,
+        type: item.entry_type as any
+      })));
+      setLoading(false);
+    });
+  }, [userId]);
+
+  const handleCheckIn = async () => {
     if (selectedEnergy && selectedSleep) {
-      setCheckInDone(true);
+      try {
+        await api.saveWellnessCheckin(userId, selectedEnergy, selectedSleep);
+        setCheckInDone(true);
+        // Refresh history
+        const h = await api.getWellnessHistory(userId);
+        setHistory(h.map(item => ({
+          date: new Date(item.timestamp * 1000).toLocaleDateString([], { weekday: 'short' }),
+          energy: item.energy as EnergyLevel,
+          sleep: item.sleep as SleepQuality,
+          note: item.note
+        })));
+      } catch (err) {
+        console.error("Failed to save check-in", err);
+      }
     }
   };
 
@@ -201,29 +239,35 @@ export default function WellnessPage() {
                     Save check-in
                   </motion.button>
 
-                  {/* Weekly Overview */}
-                  <div className="pt-4 border-t border-[#1c1c2e]">
-                    <h3 className="text-xs font-medium text-[#857F75] mb-3 uppercase tracking-wider">This week&apos;s rhythm</h3>
-                    <div className="flex gap-2">
-                      {MOCK_CHECKINS.map((day, i) => {
-                        const energyConfig = ENERGY_MAP[day.energy];
-                        return (
-                          <div key={day.date} className="flex-1 text-center">
-                            <div className="text-[10px] text-[#857F75]/60 mb-2">{day.date}</div>
-                            <motion.div
-                              className="w-8 h-8 rounded-full mx-auto flex items-center justify-center mb-1"
-                              style={{ backgroundColor: `${energyConfig.color}15` }}
-                              initial={{ scale: 0 }}
-                              animate={isReady ? { scale: 1 } : {}}
-                              transition={{ delay: i * 0.08, type: "spring" }}
-                            >
-                              <span className="text-sm">{energyConfig.emoji}</span>
-                            </motion.div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                   {/* Weekly Overview */}
+                   <div className="pt-4 border-t border-[#1c1c2e]">
+                     <h3 className="text-xs font-medium text-[#857F75] mb-3 uppercase tracking-wider">Recent rhythm history</h3>
+                     <div className="flex gap-2 min-h-[60px] items-center">
+                       {loading ? (
+                         <div className="flex-1 text-center py-4 text-xs text-[#857F75] animate-pulse">Loading patterns...</div>
+                       ) : history.length === 0 ? (
+                         <div className="flex-1 text-center py-4 text-xs text-[#857F75]">No check-ins yet. Start your first one above!</div>
+                       ) : (
+                         history.slice(0, 7).reverse().map((day, i) => {
+                           const energyConfig = ENERGY_MAP[day.energy];
+                           return (
+                             <div key={i} className="flex-1 text-center">
+                               <div className="text-[10px] text-[#857F75]/60 mb-2">{day.date}</div>
+                               <motion.div
+                                 className="w-8 h-8 rounded-full mx-auto flex items-center justify-center mb-1"
+                                 style={{ backgroundColor: `${energyConfig.color}15` }}
+                                 initial={{ scale: 0 }}
+                                 animate={{ scale: 1 }}
+                                 transition={{ delay: i * 0.08, type: "spring" }}
+                               >
+                                 <span className="text-sm">{energyConfig.emoji}</span>
+                               </motion.div>
+                             </div>
+                           );
+                         })
+                       )}
+                     </div>
+                   </div>
                 </div>
               )}
             </motion.div>

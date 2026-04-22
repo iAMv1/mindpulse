@@ -14,6 +14,10 @@ from app.schemas.stress import (
     ResetRequest,
     InterventionActionRequest,
     InterventionEvent,
+    WellnessCheckinRequest,
+    WellnessCheckinResponse,
+    JournalEntryRequest,
+    JournalEntryResponse,
 )
 from app.services.inference import engine
 from app.services.websocket_manager import manager
@@ -84,7 +88,7 @@ async def submit_feedback(req: FeedbackRequest):
             timestamp_ms=req.timestamp,
             model_label=req.predicted_level,
             user_feedback=req.actual_level,
-            score=0.0,
+            score=req.score,
         )
     return {
         "status": "ok",
@@ -199,9 +203,8 @@ async def reset_session(req: ResetRequest):
     """Clear all in-memory session data for a fresh start."""
     user_id = req.user_id
     history.reset(user_id)
-    baseline = engine._get_baseline(user_id)
-    if baseline:
-        baseline.reset()
+    engine.reset_user_state(user_id)
+        
     await manager.broadcast({"type": "session_reset", "user_id": user_id})
     return {"status": "ok", "message": f"Session data cleared for {user_id}"}
 
@@ -269,6 +272,28 @@ async def model_metrics():
         "confusion_matrix": confusion_matrix,
         "labels": ["NEUTRAL", "MILD", "STRESSED"],
     }
+
+
+@router.post("/wellness/checkin")
+async def wellness_checkin(req: WellnessCheckinRequest):
+    history.save_wellness_checkin(req.user_id, req.energy, req.sleep, req.note or "")
+    return {"status": "ok"}
+
+
+@router.get("/wellness/history", response_model=list[WellnessCheckinResponse])
+async def wellness_history(user_id: str = "default", limit: int = 30):
+    return history.get_wellness_history(user_id, limit)
+
+
+@router.post("/journal/entry")
+async def journal_entry(req: JournalEntryRequest):
+    history.save_journal_entry(req.user_id, req.content, req.entry_type or "insight")
+    return {"status": "ok"}
+
+
+@router.get("/journal/entries", response_model=list[JournalEntryResponse])
+async def journal_entries(user_id: str = "default", limit: int = 50):
+    return history.get_journal_entries(user_id, limit)
 
 
 @router.websocket("/ws/stress")

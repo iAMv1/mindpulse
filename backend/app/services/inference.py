@@ -27,6 +27,7 @@ class InferenceEngine:
         self._baselines = {}
         self._ready = False
         self._shap_explainer = None
+        self._last_scores: Dict[str, float] = {}
 
     @staticmethod
     def _sigmoid(x: float) -> float:
@@ -42,10 +43,12 @@ class InferenceEngine:
     ) -> float:
         z = float(z_values.get(name, default))
         z = -z if invert else z
+        # Clamping Z-scores between -3 and 3 to prevent sigmoid pegging (Root Cause 1)
+        z = max(min(z, 3.0), -3.0) 
         return float(self._sigmoid(z))
 
     def _compute_equation_score(
-        self, features: dict, raw: np.ndarray, baseline, hour: int
+        self, features: dict, raw: np.ndarray, baseline, hour: int, is_idle: bool = False
     ) -> tuple[float, dict]:
         z_values = {}
 
@@ -65,29 +68,29 @@ class InferenceEngine:
         except Exception:
             z_values = {}
 
-        keyboard = np.mean(
-            [
-                self._feature_risk(z_values, "hold_time_std"),
-                self._feature_risk(z_values, "flight_time_std"),
-                self._feature_risk(z_values, "pause_frequency"),
-                self._feature_risk(z_values, "rhythm_entropy"),
-                self._feature_risk(z_values, "error_rate"),
-            ]
+        # 1. Idle Grounding: If idle, deviations are forced to zero (Root Cause 1 / Fix 1)
+        if is_idle:
+            z_values = {name: 0.0 for name in FEATURE_NAMES}
+            logger.debug("Idle detected: Neutralizing all z-score deviations")
+
+        # 2. Weighted Attribution: Prioritize high-signal features (Root Cause 3)
+        keyboard = (
+            0.35 * self._feature_risk(z_values, "error_rate") +
+            0.20 * self._feature_risk(z_values, "hold_time_std") +
+            0.20 * self._feature_risk(z_values, "flight_time_std") +
+            0.15 * self._feature_risk(z_values, "pause_frequency") +
+            0.10 * self._feature_risk(z_values, "rhythm_entropy")
         )
         speed = self._feature_risk(z_values, "typing_speed_wpm", invert=True)
-        switching = np.mean(
-            [
-                self._feature_risk(z_values, "tab_switch_freq"),
-                self._feature_risk(z_values, "switch_entropy"),
-                self._feature_risk(z_values, "session_fragmentation"),
-            ]
+        switching = (
+            0.50 * self._feature_risk(z_values, "tab_switch_freq") +
+            0.20 * self._feature_risk(z_values, "switch_entropy") +
+            0.30 * self._feature_risk(z_values, "session_fragmentation")
         )
-        mouse = np.mean(
-            [
-                self._feature_risk(z_values, "mouse_speed_std"),
-                self._feature_risk(z_values, "direction_change_rate"),
-                self._feature_risk(z_values, "rage_click_count"),
-            ]
+        mouse = (
+            0.50 * self._feature_risk(z_values, "rage_click_count") +
+            0.25 * self._feature_risk(z_values, "mouse_speed_std") +
+            0.25 * self._feature_risk(z_values, "direction_change_rate")
         )
 
         reentry_count = float(features.get("mouse_reentry_count", 0.0))
@@ -107,6 +110,9 @@ class InferenceEngine:
             "S_reentry": round(float(reentry) * 100.0, 1),
         }
 
+        # Idle sensitivity check: If no activity, keep scores low
+        is_idle = float(features.get("typing_speed_wpm", 0.0)) == 0 and float(features.get("click_count", 0)) == 0
+        
         equation_score = (
             0.30 * contributions["S_keyboard"]
             + 0.15 * contributions["S_speed"]
@@ -114,6 +120,10 @@ class InferenceEngine:
             + 0.20 * contributions["S_mouse"]
             + 0.10 * contributions["S_reentry"]
         )
+
+        if is_idle:
+            equation_score *= 0.3  # Aggressive reduction when grounded
+            
         return self._clamp_score(float(equation_score)), contributions
 
     @staticmethod
@@ -192,9 +202,12 @@ class InferenceEngine:
                 # Take whichever index exists
                 idx = i if i < shap_values.shape[1] else i % num_features
                 if idx < shap_values.shape[1]:
-                    val = float(shap_values[0, idx])
-                    if abs(val) > 0.001:
-                        shap_dict[name] = round(val, 4)
+                    try:
+                        val = float(np.atleast_1d(shap_values[0, idx])[0])
+                        if abs(val) > 0.001:
+                            shap_dict[name] = round(val, 4)
+                    except (TypeError, ValueError, IndexError):
+                        continue
 
             return (
                 dict(sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True))
@@ -220,8 +233,11 @@ class InferenceEngine:
 
         hour = int(features_dict.get("hour_of_day", 12))
         baseline = self._get_baseline(user_id)
+        # Determine idle state early for both equation and model grounding
+        is_idle = float(features_dict.get("typing_speed_wpm", 0.0)) == 0 and float(features_dict.get("click_count", 0)) == 0
+
         equation_score, contributions = self._compute_equation_score(
-            features_dict, raw, baseline, hour
+            features_dict, raw, baseline, hour, is_idle=is_idle
         )
 
         shap_values = None
@@ -242,10 +258,33 @@ class InferenceEngine:
                 MODEL_SCORE_WEIGHT * model_score
                 + (1.0 - MODEL_SCORE_WEIGHT) * equation_score
             )
-            final_score = self._clamp_score(final_score)
-            level = self._level_from_score(final_score)
-
             shap_values = self._compute_shap_values(z)
+
+        # 2. Temporal Smoothing Layer (Stateful EMA) (Root Cause 2 / Fix 2 & 4)
+        prev_score = self._last_scores.get(user_id, final_score)
+        
+        # Alpha=0.2 (20% current, 80% past) for extreme stability
+        alpha = 0.2
+        
+        # If idle, we use a slightly faster decay (Fix 4)
+        if is_idle:
+            final_score = 0.7 * prev_score # Gradual momentum recovery
+            logger.debug(f"Idle recovery: decaying {prev_score:.1f} -> {final_score:.1f}")
+        else:
+            final_score = (alpha * final_score) + ((1 - alpha) * prev_score)
+
+        self._last_scores[user_id] = final_score
+        
+        # Apply Personal Feedback Bias (Shift based on user labels)
+        if baseline:
+            bias = baseline.get_feedback_bias()
+            final_score += (bias * 1.5)
+            logger.info(f"Applying bias adjust: {bias*1.5:+.1f}")
+
+        final_score = self._clamp_score(final_score)
+        level = self._level_from_score(final_score)
+
+        shap_values = self._compute_shap_values(z)
 
         timestamp = time.time()
 
@@ -363,6 +402,15 @@ class InferenceEngine:
             "mouse_reentry_count": 0.0,
             "mouse_reentry_latency_ms": 0.0,
         }
+
+
+    def reset_user_state(self, user_id: str):
+        """Clear temporal memory and baseline for a user."""
+        if user_id in self._last_scores:
+            del self._last_scores[user_id]
+        if user_id in self._baselines:
+            del self._baselines[user_id]
+        logger.info(f"State reset for user: {user_id}")
 
 
 engine = InferenceEngine()

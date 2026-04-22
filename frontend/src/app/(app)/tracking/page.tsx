@@ -1,25 +1,28 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { AnimatePresence } from "framer-motion";
 import { useStressStream } from "@/hooks/use-stress-stream";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
+import { BreathingReset } from "@/components/breathing-reset";
 import type { UserStats, InterventionRecommendation, StressResult } from "@/lib/types";
 
 const SOFT_LEVEL: Record<string, string> = {
-  STRESSED: "Low Energy",
+  STRESSED: "High Stress",
   MILD: "Dipping",
-  NEUTRAL: "Good Energy",
+  NEUTRAL: "Feeling Calm",
   UNKNOWN: "—",
 };
 
 function energyFromStress(score: number) {
-  return 100 - score;
+  return score;
 }
 
 // ─── SVG Semi-circle Gauge ───
-function EnergyGauge({ score, level }: { score: number; level: string }) {
-  const energy = energyFromStress(score);
+function StressGauge({ score, level }: { score: number; level: string }) {
+  const stress = score;
   const softLevel = SOFT_LEVEL[level] ?? level;
 
   const gradientId =
@@ -36,7 +39,7 @@ function EnergyGauge({ score, level }: { score: number; level: string }) {
   const endAngle = 0;
   const totalArc = Math.PI * arcR;
 
-  const fraction = Math.max(0, Math.min(1, energy / 100));
+  const fraction = Math.max(0, Math.min(1, stress / 100));
   const dashOffset = totalArc * (1 - fraction);
 
   return (
@@ -51,16 +54,16 @@ function EnergyGauge({ score, level }: { score: number; level: string }) {
             </feMerge>
           </filter>
           <linearGradient id="grad-good" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#5b4fc4" />
-            <stop offset="100%" stopColor="#22c55e" />
+            <stop offset="0%" stopColor="#22c55e" />
+            <stop offset="100%" stopColor="#5b4fc4" />
           </linearGradient>
           <linearGradient id="grad-dipping" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#5b4fc4" />
-            <stop offset="100%" stopColor="#d97706" />
+            <stop offset="0%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#5b4fc4" />
           </linearGradient>
           <linearGradient id="grad-low" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#5b4fc4" />
-            <stop offset="100%" stopColor="#dc2626" />
+            <stop offset="0%" stopColor="#dc2626" />
+            <stop offset="100%" stopColor="#5b4fc4" />
           </linearGradient>
         </defs>
         <path
@@ -100,7 +103,7 @@ function EnergyGauge({ score, level }: { score: number; level: string }) {
           fontWeight="700"
           fontFamily="Geist, system-ui, sans-serif"
         >
-          {Math.round(energy)}
+          {Math.round(stress)}
         </text>
         <text
           x={cx}
@@ -209,7 +212,7 @@ function Recommendation({ score }: { score: number }) {
         style={{ borderColor: "#22c55e40", background: "#22c55e08" }}
       >
         <h3 className="font-medium mb-2" style={{ color: "#22c55e" }}>
-          Good energy — keep going
+          Feeling calm — keep going
         </h3>
         <p className="text-sm" style={{ color: "#857F75" }}>
           Continue at your current pace. Take a preventive 2-min eye break every
@@ -273,6 +276,7 @@ export default function TrackingPage() {
     null,
   );
   const [breakSeconds, setBreakSeconds] = useState<number>(0);
+  const [showBreathingReset, setShowBreathingReset] = useState(false);
   const [windDown, setWindDown] = useState<{
     type: string;
     title: string;
@@ -380,7 +384,7 @@ export default function TrackingPage() {
         data.confidence >= MIN_CONFIDENCE_FOR_CRITICAL_ALERT);
     if (shouldAlert && prevLevelRef.current !== "STRESSED") {
       if (notifPermissionRef.current) {
-        new Notification("MindPulse — Energy dip", {
+        new Notification("MindPulse — Stress spiking", {
           body: "A break might help. Start your guided reset in MindPulse.",
           icon: "/favicon.ico",
           tag: "mindpulse-stress",
@@ -432,11 +436,11 @@ export default function TrackingPage() {
 
   const alertTitle =
     alertState === "BREAK_RECOMMENDED"
-      ? "A break might help"
+      ? "Stress spiking"
       : alertState === "EARLY_WARNING"
-        ? "Energy dipping"
+        ? "Stress building"
         : alertState === "RECOVERY"
-          ? "Recovering nicely"
+          ? "Stress levels dropping"
           : "Stable rhythm";
 
   return (
@@ -447,10 +451,10 @@ export default function TrackingPage() {
             className="text-3xl font-semibold tracking-tight"
             style={{ color: "#F2EFE9" }}
           >
-            Your Rhythm
+            Your Pulse
           </h1>
           <p className="text-sm mt-1.5" style={{ color: "#857F75" }}>
-            Live behavioral signals
+            Live behavioral stress signals
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -606,6 +610,9 @@ export default function TrackingPage() {
                   );
                   setActiveIntervention(intervention.intervention_type);
                   setBreakSeconds(intervention.duration_min * 60);
+                  if (intervention.title.toLowerCase().includes("breath")) {
+                    setShowBreathingReset(true);
+                  }
                 }}
                 className="px-4 py-2 rounded-lg border text-xs font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
                 style={{ borderColor: "#22c55e4d", color: "#22c55e" }}
@@ -709,7 +716,7 @@ export default function TrackingPage() {
           className="lg:col-span-1 flex flex-col items-center justify-center rounded-lg border p-6"
           style={{ background: "#141420", borderColor: "#1c1c2e" }}
         >
-          <EnergyGauge score={score} level={level} />
+          <StressGauge score={score} level={level} />
         </div>
 
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -740,7 +747,7 @@ export default function TrackingPage() {
             warn={liveErrorRate > 0.15}
           />
           <Metric
-            label="Energy dips"
+            label="Stress spikes"
             value={stats?.stressed_pct ?? 0}
             unit="%"
             warn={(stats?.stressed_pct ?? 0) > 30}
@@ -748,19 +755,19 @@ export default function TrackingPage() {
         </div>
       </div>
 
-      {/* Energy Trend Sparkline */}
+      {/* Stress Trend Sparkline */}
       <div
         className="rounded-lg border p-5"
         style={{ background: "#141420", borderColor: "#1c1c2e" }}
       >
         <h3 className="text-sm mb-4 font-medium" style={{ color: "#857F75" }}>
-          Your energy trend (last 30 min)
+          Your stress trend (last 30 min)
         </h3>
         {wsHistory.length > 1 ? (
           <div className="h-24">
             <svg width="100%" height="100%" viewBox="0 0 600 100" preserveAspectRatio="none">
               <defs>
-                <linearGradient id="energy-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <linearGradient id="stress-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
                   <stop offset="0%" stopColor="#5b4fc4" stopOpacity="0.3" />
                   <stop offset="100%" stopColor="#5b4fc4" stopOpacity="0" />
                 </linearGradient>
@@ -768,14 +775,14 @@ export default function TrackingPage() {
               {(() => {
                 const points = wsHistory.slice(-30).map((h, i, arr) => {
                   const x = (i / (arr.length - 1)) * 600;
-                  const y = 100 - (energyFromStress(h.score) / 100) * 100;
+                  const y = 100 - (h.score / 100) * 100;
                   return { x, y };
                 });
                 const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
                 const areaPath = `${linePath} L 600 100 L 0 100 Z`;
                 return (
                   <>
-                    <path d={areaPath} fill="url(#energy-gradient)" />
+                    <path d={areaPath} fill="url(#stress-gradient)" />
                     <path d={linePath} fill="none" stroke="#5b4fc4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     {points.length > 0 && (
                       <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="4" fill="#5b4fc4" />
@@ -839,25 +846,34 @@ export default function TrackingPage() {
         </p>
         <div className="flex gap-3">
           <button
-            onClick={() => api.feedback(level, level, userId)}
+            onClick={async () => {
+              await api.feedback(level, level, userId, score);
+              toast.success("Thank you! Model updated.");
+            }}
             className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
             style={{ borderColor: "#22c55e4d", color: "#22c55e" }}
           >
             Spot on
           </button>
           <button
-            onClick={() => api.feedback(level, "NEUTRAL", userId)}
+            onClick={async () => {
+              await api.feedback(level, "NEUTRAL", userId, score);
+              toast.success("Got it. We'll adjust your baseline.");
+            }}
             className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
             style={{ borderColor: "#d977064d", color: "#d97706" }}
           >
-            Actually energized
+            Actually Calm
           </button>
           <button
-            onClick={() => api.feedback(level, "STRESSED", userId)}
+            onClick={async () => {
+              await api.feedback(level, "STRESSED", userId, score);
+              toast.success("Feedback received. Retuning detection thresholds.");
+            }}
             className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
             style={{ borderColor: "#dc26264d", color: "#dc2626" }}
           >
-            Actually low energy
+            Actually Stressed
           </button>
         </div>
       </div>

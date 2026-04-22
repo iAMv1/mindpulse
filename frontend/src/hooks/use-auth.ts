@@ -43,5 +43,5 @@ export function useAuth() {
     window.location.href = "/login";
   }, []);
 
-  return { user, loading, logout, userId: user ? String(user.id) : "default" };
+  return { user, loading, logout, userId: user ? user.username : "default" };
 }
